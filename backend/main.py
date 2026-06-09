@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -48,31 +48,67 @@ class PDFRequest(BaseModel):
     content: str
 
 
-def generate_ai_response(prompt: str):
-    response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        temperature=0.4,
-        max_tokens=2048,
-    )
+def validate_question(question: str):
+    if not question or not question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
 
-    return response.choices[0].message.content
+
+def generate_ai_response(prompt: str):
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            temperature=0.4,
+            max_tokens=2048,
+        )
+
+        return response.choices[0].message.content
+
+    except Exception as error:
+        print("GROQ ERROR:", error)
+        raise HTTPException(
+            status_code=503,
+            detail="AI service is temporarily unavailable. Please try again."
+        )
+
+
+def safe_insert_chat(data: dict):
+    try:
+        result = supabase.table("chats").insert(data).execute()
+        return result.data[0]["id"]
+
+    except Exception as error:
+        print("SUPABASE INSERT ERROR:", error)
+        return None
+
+
+def safe_update_chat(chat_id: str, data: dict):
+    try:
+        supabase.table("chats").update(data).eq("id", chat_id).execute()
+
+    except Exception as error:
+        print("SUPABASE UPDATE ERROR:", error)
 
 
 @app.get("/")
 def home():
     return {
-        "message": "LearnForge AI backend is running with Groq and Supabase"
+        "message": "LearnForge AI backend is running safely with Groq and Supabase"
     }
 
 
 @app.post("/ask")
 def ask_question(request: AskRequest):
+    validate_question(request.question)
+
     prompt = f"""
 You are LearnForge AI.
 
@@ -107,13 +143,11 @@ User Question:
 
     answer = generate_ai_response(prompt)
 
-    result = supabase.table("chats").insert({
+    chat_id = safe_insert_chat({
         "question": request.question,
         "learn_answer": answer,
         "mode": "learn"
-    }).execute()
-
-    chat_id = result.data[0]["id"]
+    })
 
     return {
         "chat_id": chat_id,
@@ -123,6 +157,8 @@ User Question:
 
 @app.post("/build")
 def build_thing(request: ModeRequest):
+    validate_question(request.question)
+
     prompt = f"""
 You are LearnForge AI Build Mode.
 
@@ -161,27 +197,30 @@ Important Formatting Rules:
 
     answer = generate_ai_response(prompt)
 
-    if request.chat_id:
-        supabase.table("chats").update({
+    chat_id = request.chat_id
+
+    if chat_id:
+        safe_update_chat(chat_id, {
             "build_answer": answer,
             "mode": "build"
-        }).eq("id", request.chat_id).execute()
+        })
     else:
-        result = supabase.table("chats").insert({
+        chat_id = safe_insert_chat({
             "question": request.question,
             "build_answer": answer,
             "mode": "build"
-        }).execute()
-        request.chat_id = result.data[0]["id"]
+        })
 
     return {
-        "chat_id": request.chat_id,
+        "chat_id": chat_id,
         "answer": answer
     }
 
 
 @app.post("/improve")
 def improve_thing(request: ModeRequest):
+    validate_question(request.question)
+
     prompt = f"""
 You are LearnForge AI Improve Mode.
 
@@ -218,27 +257,30 @@ Important Formatting Rules:
 
     answer = generate_ai_response(prompt)
 
-    if request.chat_id:
-        supabase.table("chats").update({
+    chat_id = request.chat_id
+
+    if chat_id:
+        safe_update_chat(chat_id, {
             "improve_answer": answer,
             "mode": "improve"
-        }).eq("id", request.chat_id).execute()
+        })
     else:
-        result = supabase.table("chats").insert({
+        chat_id = safe_insert_chat({
             "question": request.question,
             "improve_answer": answer,
             "mode": "improve"
-        }).execute()
-        request.chat_id = result.data[0]["id"]
+        })
 
     return {
-        "chat_id": request.chat_id,
+        "chat_id": chat_id,
         "answer": answer
     }
 
 
 @app.post("/troubleshoot")
 def troubleshoot_thing(request: ModeRequest):
+    validate_question(request.question)
+
     prompt = f"""
 You are LearnForge AI Troubleshoot Mode.
 
@@ -272,50 +314,70 @@ Important Formatting Rules:
 
     answer = generate_ai_response(prompt)
 
-    if request.chat_id:
-        supabase.table("chats").update({
+    chat_id = request.chat_id
+
+    if chat_id:
+        safe_update_chat(chat_id, {
             "troubleshoot_answer": answer,
             "mode": "troubleshoot"
-        }).eq("id", request.chat_id).execute()
+        })
     else:
-        result = supabase.table("chats").insert({
+        chat_id = safe_insert_chat({
             "question": request.question,
             "troubleshoot_answer": answer,
             "mode": "troubleshoot"
-        }).execute()
-        request.chat_id = result.data[0]["id"]
+        })
 
     return {
-        "chat_id": request.chat_id,
+        "chat_id": chat_id,
         "answer": answer
     }
 
 
 @app.get("/history")
 def get_history():
-    result = (
-        supabase
-        .table("chats")
-        .select("*")
-        .order("created_at", desc=True)
-        .limit(30)
-        .execute()
-    )
+    try:
+        result = (
+            supabase
+            .table("chats")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(30)
+            .execute()
+        )
 
-    return {"history": result.data}
+        return {"history": result.data}
+
+    except Exception as error:
+        print("SUPABASE HISTORY ERROR:", error)
+        return {"history": []}
 
 
 @app.delete("/history/{chat_id}")
 def delete_history(chat_id: str):
-    supabase.table("chats").delete().eq("id", chat_id).execute()
+    try:
+        supabase.table("chats").delete().eq("id", chat_id).execute()
 
-    return {
-        "message": "Chat deleted successfully"
-    }
+        return {
+            "message": "Chat deleted successfully"
+        }
+
+    except Exception as error:
+        print("SUPABASE DELETE ERROR:", error)
+        raise HTTPException(
+            status_code=500,
+            detail="Could not delete chat."
+        )
 
 
 @app.post("/generate-pdf")
 def generate_pdf(request: PDFRequest):
+    if not request.content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="PDF content cannot be empty."
+        )
+
     file_name = "learnforge_output.pdf"
 
     pdf = canvas.Canvas(file_name, pagesize=A4)
@@ -323,7 +385,7 @@ def generate_pdf(request: PDFRequest):
     y = height - 50
 
     pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(50, y, request.title)
+    pdf.drawString(50, y, request.title or "LearnForge AI Output")
     y -= 40
 
     pdf.setFont("Helvetica", 11)
