@@ -51,9 +51,7 @@ export default function Home() {
 
       const res = await fetch("http://127.0.0.1:8000/ask", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
       });
 
@@ -78,13 +76,8 @@ export default function Home() {
 
       const res = await fetch("http://127.0.0.1:8000/build", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          chat_id: chatId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -108,13 +101,8 @@ export default function Home() {
 
       const res = await fetch("http://127.0.0.1:8000/improve", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          chat_id: chatId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -138,13 +126,8 @@ export default function Home() {
 
       const res = await fetch("http://127.0.0.1:8000/troubleshoot", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          chat_id: chatId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -176,6 +159,27 @@ export default function Home() {
     }
   }
 
+  async function deleteHistoryItem(id: string) {
+    const confirmDelete = confirm("Are you sure you want to delete this chat?");
+
+    if (!confirmDelete) return;
+
+    try {
+      await fetch(`http://127.0.0.1:8000/history/${id}`, {
+        method: "DELETE",
+      });
+
+      if (chatId === id) {
+        newChat();
+      }
+
+      await loadHistory();
+    } catch (error) {
+      console.error(error);
+      alert("Could not delete chat.");
+    }
+  }
+
   function openHistoryItem(item: ChatHistoryItem) {
     setChatId(item.id || "");
     setQuestion(item.question || "");
@@ -200,9 +204,7 @@ export default function Home() {
 
       const res = await fetch("http://127.0.0.1:8000/generate-pdf", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content }),
       });
 
@@ -229,8 +231,7 @@ export default function Home() {
         <header className="mb-8 text-center">
           <h1 className="text-5xl font-bold mb-3">LearnForge AI</h1>
           <p className="text-slate-600 text-lg">
-            Learn anything. Build anything. Improve everything. Troubleshoot
-            anything.
+            Learn anything. Build anything. Improve everything. Troubleshoot anything.
           </p>
         </header>
 
@@ -260,25 +261,36 @@ export default function Home() {
 
             <div className="space-y-3 max-h-[650px] overflow-y-auto pr-1">
               {history.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => openHistoryItem(item)}
-                  className="w-full text-left border rounded-2xl p-3 hover:bg-slate-50 transition"
+                  className="border rounded-2xl p-3 hover:bg-slate-50 transition"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                      {item.mode || "learn"}
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => openHistoryItem(item)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                        {item.mode || "learn"}
+                      </span>
+                    </div>
 
-                  <p className="font-semibold text-sm line-clamp-2">
-                    {item.question}
-                  </p>
+                    <p className="font-semibold text-sm line-clamp-2">
+                      {item.question}
+                    </p>
 
-                  <p className="text-xs text-slate-500 mt-2">
-                    {new Date(item.created_at).toLocaleString()}
-                  </p>
-                </button>
+                    <p className="text-xs text-slate-500 mt-2">
+                      {new Date(item.created_at).toLocaleString()}
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => deleteHistoryItem(item.id)}
+                    className="mt-3 text-xs text-red-600 hover:text-red-800 font-semibold"
+                  >
+                    Delete
+                  </button>
+                </div>
               ))}
             </div>
           </aside>
@@ -286,9 +298,7 @@ export default function Home() {
           <section className="lg:col-span-3">
             <div className="bg-white rounded-3xl shadow-sm border p-6 mb-6">
               <div className="flex items-center justify-between gap-4 mb-3">
-                <label className="block font-bold text-lg">
-                  Ask your question
-                </label>
+                <label className="block font-bold text-lg">Ask your question</label>
 
                 {chatId && (
                   <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
@@ -333,9 +343,7 @@ export default function Home() {
                       onClick={troubleshootThis}
                       className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-semibold"
                     >
-                      {troubleshooting
-                        ? "Troubleshooting..."
-                        : "Troubleshoot This"}
+                      {troubleshooting ? "Troubleshooting..." : "Troubleshoot This"}
                     </button>
                   </>
                 )}

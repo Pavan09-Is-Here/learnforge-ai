@@ -305,6 +305,15 @@ def get_history():
     return {"history": result.data}
 
 
+@app.delete("/history/{chat_id}")
+def delete_history(chat_id: str):
+    supabase.table("chats").delete().eq("id", chat_id).execute()
+
+    return {
+        "message": "Chat deleted successfully"
+    }
+
+
 @app.post("/generate-pdf")
 def generate_pdf(request: PDFRequest):
     file_name = "learnforge_output.pdf"
