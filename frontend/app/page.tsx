@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ChatHistoryItem = {
   id: string;
@@ -23,6 +23,7 @@ export default function Home() {
   const [troubleshootAnswer, setTroubleshootAnswer] = useState("");
 
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
+  const [historySearch, setHistorySearch] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -34,6 +35,16 @@ export default function Home() {
   useEffect(() => {
     loadHistory();
   }, []);
+
+  const filteredHistory = useMemo(() => {
+    const search = historySearch.toLowerCase().trim();
+
+    if (!search) return history;
+
+    return history.filter((item) =>
+      item.question.toLowerCase().includes(search)
+    );
+  }, [history, historySearch]);
 
   async function askAI() {
     if (!question.trim()) {
@@ -160,7 +171,7 @@ export default function Home() {
   }
 
   async function deleteHistoryItem(id: string) {
-    const confirmDelete = confirm("Are you sure you want to delete this chat?");
+    const confirmDelete = confirm("Delete this saved chat?");
 
     if (!confirmDelete) return;
 
@@ -229,16 +240,25 @@ export default function Home() {
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <header className="mb-8 text-center">
+          <p className="text-sm font-semibold text-blue-600 mb-2">
+            LearnForge AI MVP
+          </p>
           <h1 className="text-5xl font-bold mb-3">LearnForge AI</h1>
           <p className="text-slate-600 text-lg">
-            Learn anything. Build anything. Improve everything. Troubleshoot anything.
+            Learn anything. Build anything. Improve everything. Troubleshoot
+            anything.
           </p>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <aside className="bg-white rounded-3xl shadow-sm border p-4 h-fit">
             <div className="flex items-center justify-between mb-4 gap-2">
-              <h2 className="font-bold text-xl">History</h2>
+              <div>
+                <h2 className="font-bold text-xl">History</h2>
+                <p className="text-xs text-slate-500">
+                  {history.length} saved chats
+                </p>
+              </div>
 
               <button
                 onClick={newChat}
@@ -248,6 +268,13 @@ export default function Home() {
               </button>
             </div>
 
+            <input
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search history..."
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+            />
+
             <button
               onClick={loadHistory}
               className="w-full bg-slate-900 hover:bg-black text-white px-3 py-2 rounded-xl text-sm mb-4"
@@ -255,29 +282,48 @@ export default function Home() {
               {historyLoading ? "Refreshing..." : "Refresh History"}
             </button>
 
-            {history.length === 0 && (
-              <p className="text-slate-500 text-sm">No saved chats yet.</p>
+            {filteredHistory.length === 0 && (
+              <p className="text-slate-500 text-sm">No matching chats.</p>
             )}
 
             <div className="space-y-3 max-h-[650px] overflow-y-auto pr-1">
-              {history.map((item) => (
+              {filteredHistory.map((item) => (
                 <div
                   key={item.id}
-                  className="border rounded-2xl p-3 hover:bg-slate-50 transition"
+                  className={`border rounded-2xl p-3 transition ${
+                    chatId === item.id
+                      ? "bg-blue-50 border-blue-200"
+                      : "hover:bg-slate-50"
+                  }`}
                 >
                   <button
                     onClick={() => openHistoryItem(item)}
                     className="w-full text-left"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
                         {item.mode || "learn"}
                       </span>
+
+                      {chatId === item.id && (
+                        <span className="text-xs text-blue-600 font-semibold">
+                          Open
+                        </span>
+                      )}
                     </div>
 
                     <p className="font-semibold text-sm line-clamp-2">
                       {item.question}
                     </p>
+
+                    <div className="flex gap-1 flex-wrap mt-2">
+                      {item.learn_answer && <MiniBadge label="Learn" />}
+                      {item.build_answer && <MiniBadge label="Build" />}
+                      {item.improve_answer && <MiniBadge label="Improve" />}
+                      {item.troubleshoot_answer && (
+                        <MiniBadge label="Troubleshoot" />
+                      )}
+                    </div>
 
                     <p className="text-xs text-slate-500 mt-2">
                       {new Date(item.created_at).toLocaleString()}
@@ -298,7 +344,15 @@ export default function Home() {
           <section className="lg:col-span-3">
             <div className="bg-white rounded-3xl shadow-sm border p-6 mb-6">
               <div className="flex items-center justify-between gap-4 mb-3">
-                <label className="block font-bold text-lg">Ask your question</label>
+                <div>
+                  <label className="block font-bold text-lg">
+                    Ask your question
+                  </label>
+                  <p className="text-sm text-slate-500">
+                    Start with Learn Mode, then use Build, Improve, or
+                    Troubleshoot.
+                  </p>
+                </div>
 
                 {chatId && (
                   <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
@@ -343,9 +397,24 @@ export default function Home() {
                       onClick={troubleshootThis}
                       className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-semibold"
                     >
-                      {troubleshooting ? "Troubleshooting..." : "Troubleshoot This"}
+                      {troubleshooting
+                        ? "Troubleshooting..."
+                        : "Troubleshoot This"}
                     </button>
                   </>
+                )}
+
+                {(answer ||
+                  buildAnswer ||
+                  improveAnswer ||
+                  troubleshootAnswer ||
+                  question) && (
+                  <button
+                    onClick={newChat}
+                    className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-3 rounded-2xl font-semibold"
+                  >
+                    Clear Current
+                  </button>
                 )}
               </div>
             </div>
@@ -353,6 +422,7 @@ export default function Home() {
             {answer && (
               <AnswerCard
                 title="Learn Mode Answer"
+                badge="Learn"
                 content={answer}
                 pdfLoading={pdfLoading}
                 onDownload={() =>
@@ -364,6 +434,7 @@ export default function Home() {
             {buildAnswer && (
               <AnswerCard
                 title="Build Mode Guide"
+                badge="Build"
                 content={buildAnswer}
                 pdfLoading={pdfLoading}
                 onDownload={() =>
@@ -375,6 +446,7 @@ export default function Home() {
             {improveAnswer && (
               <AnswerCard
                 title="Improve Mode Guide"
+                badge="Improve"
                 content={improveAnswer}
                 pdfLoading={pdfLoading}
                 onDownload={() =>
@@ -386,6 +458,7 @@ export default function Home() {
             {troubleshootAnswer && (
               <AnswerCard
                 title="Troubleshoot Mode Guide"
+                badge="Troubleshoot"
                 content={troubleshootAnswer}
                 pdfLoading={pdfLoading}
                 onDownload={() =>
@@ -403,13 +476,23 @@ export default function Home() {
   );
 }
 
+function MiniBadge({ label }: { label: string }) {
+  return (
+    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
+      {label}
+    </span>
+  );
+}
+
 function AnswerCard({
   title,
+  badge,
   content,
   pdfLoading,
   onDownload,
 }: {
   title: string;
+  badge: string;
   content: string;
   pdfLoading: boolean;
   onDownload: () => void;
@@ -417,7 +500,12 @@ function AnswerCard({
   return (
     <section className="bg-white rounded-3xl shadow-sm border p-6 mb-6">
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="text-2xl font-bold">{title}</h2>
+        <div>
+          <span className="inline-block text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full mb-2">
+            {badge}
+          </span>
+          <h2 className="text-2xl font-bold">{title}</h2>
+        </div>
 
         <button
           onClick={onDownload}
