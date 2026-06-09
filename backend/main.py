@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
+from groq import Groq
+from supabase import create_client
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import textwrap
@@ -25,8 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
+groq_client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
+
+supabase = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
 )
 
 
@@ -39,10 +45,26 @@ class PDFRequest(BaseModel):
     content: str
 
 
+def generate_ai_response(prompt: str):
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0.4,
+        max_tokens=2048,
+    )
+
+    return response.choices[0].message.content
+
+
 @app.get("/")
 def home():
     return {
-        "message": "LearnForge AI backend is running with Gemini"
+        "message": "LearnForge AI backend is running with Groq and Supabase"
     }
 
 
@@ -79,12 +101,14 @@ User Question:
 {request.question}
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    answer = generate_ai_response(prompt)
 
-    return {"answer": response.text}
+    supabase.table("chats").insert({
+        "question": request.question,
+        "learn_answer": answer
+    }).execute()
+
+    return {"answer": answer}
 
 
 @app.post("/build")
@@ -126,12 +150,14 @@ Important Formatting Rules:
 Explain everything clearly for beginners.
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    answer = generate_ai_response(prompt)
 
-    return {"answer": response.text}
+    supabase.table("chats").insert({
+        "question": request.question,
+        "build_answer": answer
+    }).execute()
+
+    return {"answer": answer}
 
 
 @app.post("/improve")
@@ -171,12 +197,72 @@ Important Formatting Rules:
 Explain everything clearly for beginners.
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
+    answer = generate_ai_response(prompt)
+
+    supabase.table("chats").insert({
+        "question": request.question,
+        "improve_answer": answer
+    }).execute()
+
+    return {"answer": answer}
+
+
+@app.post("/troubleshoot")
+def troubleshoot_thing(request: AskRequest):
+    prompt = f"""
+You are LearnForge AI Troubleshoot Mode.
+
+Create a complete troubleshooting guide for:
+
+{request.question}
+
+Use this structure:
+
+1. Troubleshooting Title
+2. Problem Summary
+3. Possible Causes
+4. Most Likely Cause
+5. Diagnostic Steps
+6. Step-by-Step Fixes
+7. What Not To Do
+8. Prevention Tips
+9. When To Ask An Expert
+10. Final Checklist
+11. Summary
+
+Important Formatting Rules:
+- Do not use Markdown.
+- Do not use # symbols.
+- Do not use * symbols.
+- Use clean plain text.
+- Use numbered section titles.
+- Use dash bullets instead of star bullets.
+
+Explain everything clearly for beginners.
+"""
+
+    answer = generate_ai_response(prompt)
+
+    supabase.table("chats").insert({
+        "question": request.question,
+        "troubleshoot_answer": answer
+    }).execute()
+
+    return {"answer": answer}
+
+
+@app.get("/history")
+def get_history():
+    result = (
+        supabase
+        .table("chats")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(20)
+        .execute()
     )
 
-    return {"answer": response.text}
+    return {"history": result.data}
 
 
 @app.post("/generate-pdf")
@@ -218,44 +304,3 @@ def generate_pdf(request: PDFRequest):
         media_type="application/pdf",
         filename=file_name
     )
-
-@app.post("/troubleshoot")
-def troubleshoot_thing(request: AskRequest):
-    prompt = f"""
-You are LearnForge AI Troubleshoot Mode.
-
-Create a complete troubleshooting guide for:
-
-{request.question}
-
-Use this structure:
-
-1. Troubleshooting Title
-2. Problem Summary
-3. Possible Causes
-4. Most Likely Cause
-5. Diagnostic Steps
-6. Step-by-Step Fixes
-7. What Not To Do
-8. Prevention Tips
-9. When To Ask An Expert
-10. Final Checklist
-11. Summary
-
-Important Formatting Rules:
-- Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
-- Use clean plain text.
-- Use numbered section titles.
-- Use dash bullets instead of star bullets.
-
-Explain everything clearly for beginners.
-"""
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-
-    return {"answer": response.text}
