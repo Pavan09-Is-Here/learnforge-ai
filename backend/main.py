@@ -26,9 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-groq_client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 supabase = create_client(
     os.getenv("SUPABASE_URL"),
@@ -38,6 +36,11 @@ supabase = create_client(
 
 class AskRequest(BaseModel):
     question: str
+
+
+class ModeRequest(BaseModel):
+    question: str
+    chat_id: str | None = None
 
 
 class PDFRequest(BaseModel):
@@ -96,6 +99,7 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
+- Make the response beginner-friendly and practical.
 
 User Question:
 {request.question}
@@ -103,16 +107,22 @@ User Question:
 
     answer = generate_ai_response(prompt)
 
-    supabase.table("chats").insert({
+    result = supabase.table("chats").insert({
         "question": request.question,
-        "learn_answer": answer
+        "learn_answer": answer,
+        "mode": "learn"
     }).execute()
 
-    return {"answer": answer}
+    chat_id = result.data[0]["id"]
+
+    return {
+        "chat_id": chat_id,
+        "answer": answer
+    }
 
 
 @app.post("/build")
-def build_thing(request: AskRequest):
+def build_thing(request: ModeRequest):
     prompt = f"""
 You are LearnForge AI Build Mode.
 
@@ -146,22 +156,32 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-
-Explain everything clearly for beginners.
+- Make the guide practical and beginner-friendly.
 """
 
     answer = generate_ai_response(prompt)
 
-    supabase.table("chats").insert({
-        "question": request.question,
-        "build_answer": answer
-    }).execute()
+    if request.chat_id:
+        supabase.table("chats").update({
+            "build_answer": answer,
+            "mode": "build"
+        }).eq("id", request.chat_id).execute()
+    else:
+        result = supabase.table("chats").insert({
+            "question": request.question,
+            "build_answer": answer,
+            "mode": "build"
+        }).execute()
+        request.chat_id = result.data[0]["id"]
 
-    return {"answer": answer}
+    return {
+        "chat_id": request.chat_id,
+        "answer": answer
+    }
 
 
 @app.post("/improve")
-def improve_thing(request: AskRequest):
+def improve_thing(request: ModeRequest):
     prompt = f"""
 You are LearnForge AI Improve Mode.
 
@@ -193,22 +213,32 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-
-Explain everything clearly for beginners.
+- Make the guide easy to understand and actionable.
 """
 
     answer = generate_ai_response(prompt)
 
-    supabase.table("chats").insert({
-        "question": request.question,
-        "improve_answer": answer
-    }).execute()
+    if request.chat_id:
+        supabase.table("chats").update({
+            "improve_answer": answer,
+            "mode": "improve"
+        }).eq("id", request.chat_id).execute()
+    else:
+        result = supabase.table("chats").insert({
+            "question": request.question,
+            "improve_answer": answer,
+            "mode": "improve"
+        }).execute()
+        request.chat_id = result.data[0]["id"]
 
-    return {"answer": answer}
+    return {
+        "chat_id": request.chat_id,
+        "answer": answer
+    }
 
 
 @app.post("/troubleshoot")
-def troubleshoot_thing(request: AskRequest):
+def troubleshoot_thing(request: ModeRequest):
     prompt = f"""
 You are LearnForge AI Troubleshoot Mode.
 
@@ -237,18 +267,28 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-
-Explain everything clearly for beginners.
+- Make the guide safe, practical, and beginner-friendly.
 """
 
     answer = generate_ai_response(prompt)
 
-    supabase.table("chats").insert({
-        "question": request.question,
-        "troubleshoot_answer": answer
-    }).execute()
+    if request.chat_id:
+        supabase.table("chats").update({
+            "troubleshoot_answer": answer,
+            "mode": "troubleshoot"
+        }).eq("id", request.chat_id).execute()
+    else:
+        result = supabase.table("chats").insert({
+            "question": request.question,
+            "troubleshoot_answer": answer,
+            "mode": "troubleshoot"
+        }).execute()
+        request.chat_id = result.data[0]["id"]
 
-    return {"answer": answer}
+    return {
+        "chat_id": request.chat_id,
+        "answer": answer
+    }
 
 
 @app.get("/history")
@@ -258,7 +298,7 @@ def get_history():
         .table("chats")
         .select("*")
         .order("created_at", desc=True)
-        .limit(20)
+        .limit(30)
         .execute()
     )
 
