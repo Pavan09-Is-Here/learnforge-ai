@@ -36,10 +36,12 @@ supabase = create_client(
 
 class AskRequest(BaseModel):
     question: str
+    user_id: str
 
 
 class ModeRequest(BaseModel):
     question: str
+    user_id: str
     chat_id: str | None = None
 
 
@@ -50,33 +52,23 @@ class PDFRequest(BaseModel):
 
 def validate_question(question: str):
     if not question or not question.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Question cannot be empty."
-        )
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
 
 def generate_ai_response(prompt: str):
     try:
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
             max_tokens=2048,
         )
-
         return response.choices[0].message.content
-
     except Exception as error:
         print("GROQ ERROR:", error)
         raise HTTPException(
             status_code=503,
-            detail="AI service is temporarily unavailable. Please try again."
+            detail="AI service temporarily unavailable. Please try again."
         )
 
 
@@ -84,25 +76,21 @@ def safe_insert_chat(data: dict):
     try:
         result = supabase.table("chats").insert(data).execute()
         return result.data[0]["id"]
-
     except Exception as error:
         print("SUPABASE INSERT ERROR:", error)
         return None
 
 
-def safe_update_chat(chat_id: str, data: dict):
+def safe_update_chat(chat_id: str, user_id: str, data: dict):
     try:
-        supabase.table("chats").update(data).eq("id", chat_id).execute()
-
+        supabase.table("chats").update(data).eq("id", chat_id).eq("user_id", user_id).execute()
     except Exception as error:
         print("SUPABASE UPDATE ERROR:", error)
 
 
 @app.get("/")
 def home():
-    return {
-        "message": "LearnForge AI backend is running safely with Groq and Supabase"
-    }
+    return {"message": "LearnForge AI backend running with private history"}
 
 
 @app.post("/ask")
@@ -146,13 +134,11 @@ User Question:
     chat_id = safe_insert_chat({
         "question": request.question,
         "learn_answer": answer,
-        "mode": "learn"
+        "mode": "learn",
+        "user_id": request.user_id
     })
 
-    return {
-        "chat_id": chat_id,
-        "answer": answer
-    }
+    return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/build")
@@ -192,7 +178,6 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-- Make the guide practical and beginner-friendly.
 """
 
     answer = generate_ai_response(prompt)
@@ -200,7 +185,7 @@ Important Formatting Rules:
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, {
+        safe_update_chat(chat_id, request.user_id, {
             "build_answer": answer,
             "mode": "build"
         })
@@ -208,13 +193,11 @@ Important Formatting Rules:
         chat_id = safe_insert_chat({
             "question": request.question,
             "build_answer": answer,
-            "mode": "build"
+            "mode": "build",
+            "user_id": request.user_id
         })
 
-    return {
-        "chat_id": chat_id,
-        "answer": answer
-    }
+    return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/improve")
@@ -252,7 +235,6 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-- Make the guide easy to understand and actionable.
 """
 
     answer = generate_ai_response(prompt)
@@ -260,7 +242,7 @@ Important Formatting Rules:
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, {
+        safe_update_chat(chat_id, request.user_id, {
             "improve_answer": answer,
             "mode": "improve"
         })
@@ -268,13 +250,11 @@ Important Formatting Rules:
         chat_id = safe_insert_chat({
             "question": request.question,
             "improve_answer": answer,
-            "mode": "improve"
+            "mode": "improve",
+            "user_id": request.user_id
         })
 
-    return {
-        "chat_id": chat_id,
-        "answer": answer
-    }
+    return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/troubleshoot")
@@ -309,7 +289,6 @@ Important Formatting Rules:
 - Use clean plain text.
 - Use numbered section titles.
 - Use dash bullets instead of star bullets.
-- Make the guide safe, practical, and beginner-friendly.
 """
 
     answer = generate_ai_response(prompt)
@@ -317,7 +296,7 @@ Important Formatting Rules:
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, {
+        safe_update_chat(chat_id, request.user_id, {
             "troubleshoot_answer": answer,
             "mode": "troubleshoot"
         })
@@ -325,58 +304,45 @@ Important Formatting Rules:
         chat_id = safe_insert_chat({
             "question": request.question,
             "troubleshoot_answer": answer,
-            "mode": "troubleshoot"
+            "mode": "troubleshoot",
+            "user_id": request.user_id
         })
 
-    return {
-        "chat_id": chat_id,
-        "answer": answer
-    }
+    return {"chat_id": chat_id, "answer": answer}
 
 
-@app.get("/history")
-def get_history():
+@app.get("/history/{user_id}")
+def get_history(user_id: str):
     try:
         result = (
             supabase
             .table("chats")
             .select("*")
+            .eq("user_id", user_id)
             .order("created_at", desc=True)
             .limit(30)
             .execute()
         )
-
         return {"history": result.data}
-
     except Exception as error:
         print("SUPABASE HISTORY ERROR:", error)
         return {"history": []}
 
 
-@app.delete("/history/{chat_id}")
-def delete_history(chat_id: str):
+@app.delete("/history/{user_id}/{chat_id}")
+def delete_history(user_id: str, chat_id: str):
     try:
-        supabase.table("chats").delete().eq("id", chat_id).execute()
-
-        return {
-            "message": "Chat deleted successfully"
-        }
-
+        supabase.table("chats").delete().eq("id", chat_id).eq("user_id", user_id).execute()
+        return {"message": "Chat deleted successfully"}
     except Exception as error:
         print("SUPABASE DELETE ERROR:", error)
-        raise HTTPException(
-            status_code=500,
-            detail="Could not delete chat."
-        )
+        raise HTTPException(status_code=500, detail="Could not delete chat.")
 
 
 @app.post("/generate-pdf")
 def generate_pdf(request: PDFRequest):
     if not request.content.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="PDF content cannot be empty."
-        )
+        raise HTTPException(status_code=400, detail="PDF content cannot be empty.")
 
     file_name = "learnforge_output.pdf"
 

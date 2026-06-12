@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import type { User } from "@supabase/supabase-js";
 
 type ChatHistoryItem = {
   id: string;
@@ -11,9 +13,15 @@ type ChatHistoryItem = {
   troubleshoot_answer?: string;
   mode?: string;
   created_at: string;
+  user_id?: string;
 };
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
   const [chatId, setChatId] = useState("");
   const [question, setQuestion] = useState("");
 
@@ -25,6 +33,7 @@ export default function Home() {
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [historySearch, setHistorySearch] = useState("");
 
+  const [authLoading, setAuthLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [improving, setImproving] = useState(false);
@@ -33,8 +42,22 @@ export default function Home() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
-    loadHistory();
+    checkUser();
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadHistory(user.id);
+    }
+  }, [user]);
 
   const filteredHistory = useMemo(() => {
     const search = historySearch.toLowerCase().trim();
@@ -46,9 +69,77 @@ export default function Home() {
     );
   }, [history, historySearch]);
 
+  async function checkUser() {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user);
+  }
+
+  async function signUp() {
+    if (!email || !password) {
+      alert("Please enter email and password.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      alert("Signup successful. You can now login.");
+      setAuthMode("login");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function login() {
+    if (!email || !password) {
+      alert("Please enter email and password.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await checkUser();
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    setUser(null);
+    newChat();
+    setHistory([]);
+  }
+
   async function askAI() {
     if (!question.trim()) {
       alert("Please type a question first.");
+      return;
+    }
+
+    if (!user) {
+      alert("Please login first.");
       return;
     }
 
@@ -63,7 +154,7 @@ export default function Home() {
       const res = await fetch("http://127.0.0.1:8000/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -71,7 +162,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setAnswer(data.answer);
 
-      await loadHistory();
+      await loadHistory(user.id);
     } catch (error) {
       console.error(error);
       setAnswer("Error connecting to backend.");
@@ -81,6 +172,8 @@ export default function Home() {
   }
 
   async function buildThis() {
+    if (!user) return;
+
     try {
       setBuilding(true);
       setBuildAnswer("");
@@ -88,7 +181,7 @@ export default function Home() {
       const res = await fetch("http://127.0.0.1:8000/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId }),
+        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -96,7 +189,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setBuildAnswer(data.answer);
 
-      await loadHistory();
+      await loadHistory(user.id);
     } catch (error) {
       console.error(error);
       setBuildAnswer("Error connecting to Build Mode.");
@@ -106,6 +199,8 @@ export default function Home() {
   }
 
   async function improveThis() {
+    if (!user) return;
+
     try {
       setImproving(true);
       setImproveAnswer("");
@@ -113,7 +208,7 @@ export default function Home() {
       const res = await fetch("http://127.0.0.1:8000/improve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId }),
+        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -121,7 +216,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setImproveAnswer(data.answer);
 
-      await loadHistory();
+      await loadHistory(user.id);
     } catch (error) {
       console.error(error);
       setImproveAnswer("Error connecting to Improve Mode.");
@@ -131,6 +226,8 @@ export default function Home() {
   }
 
   async function troubleshootThis() {
+    if (!user) return;
+
     try {
       setTroubleshooting(true);
       setTroubleshootAnswer("");
@@ -138,7 +235,7 @@ export default function Home() {
       const res = await fetch("http://127.0.0.1:8000/troubleshoot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId }),
+        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -146,7 +243,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setTroubleshootAnswer(data.answer);
 
-      await loadHistory();
+      await loadHistory(user.id);
     } catch (error) {
       console.error(error);
       setTroubleshootAnswer("Error connecting to Troubleshoot Mode.");
@@ -155,11 +252,15 @@ export default function Home() {
     }
   }
 
-  async function loadHistory() {
+  async function loadHistory(userId?: string) {
+    const activeUserId = userId || user?.id;
+
+    if (!activeUserId) return;
+
     try {
       setHistoryLoading(true);
 
-      const res = await fetch("http://127.0.0.1:8000/history");
+      const res = await fetch(`http://127.0.0.1:8000/history/${activeUserId}`);
       const data = await res.json();
 
       setHistory(data.history || []);
@@ -171,12 +272,14 @@ export default function Home() {
   }
 
   async function deleteHistoryItem(id: string) {
+    if (!user) return;
+
     const confirmDelete = confirm("Delete this saved chat?");
 
     if (!confirmDelete) return;
 
     try {
-      await fetch(`http://127.0.0.1:8000/history/${id}`, {
+      await fetch(`http://127.0.0.1:8000/history/${user.id}/${id}`, {
         method: "DELETE",
       });
 
@@ -184,7 +287,7 @@ export default function Home() {
         newChat();
       }
 
-      await loadHistory();
+      await loadHistory(user.id);
     } catch (error) {
       console.error(error);
       alert("Could not delete chat.");
@@ -236,18 +339,97 @@ export default function Home() {
     }
   }
 
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl shadow-sm border p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <p className="text-sm font-semibold text-blue-600 mb-2">
+              LearnForge AI
+            </p>
+            <h1 className="text-4xl font-bold mb-2">
+              {authMode === "login" ? "Welcome back" : "Create account"}
+            </h1>
+            <p className="text-slate-500">
+              Learn, build, improve, and troubleshoot with AI.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <input
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+
+            <input
+              className="w-full border border-slate-300 rounded-xl px-4 py-3"
+              placeholder="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+
+            <button
+              onClick={authMode === "login" ? login : signUp}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold"
+            >
+              {authLoading
+                ? "Please wait..."
+                : authMode === "login"
+                ? "Login"
+                : "Sign Up"}
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
+            {authMode === "login" ? (
+              <button
+                onClick={() => setAuthMode("signup")}
+                className="text-blue-600 font-semibold"
+              >
+                New user? Create an account
+              </button>
+            ) : (
+              <button
+                onClick={() => setAuthMode("login")}
+                className="text-blue-600 font-semibold"
+              >
+                Already have an account? Login
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <header className="mb-8 text-center">
-          <p className="text-sm font-semibold text-blue-600 mb-2">
-            LearnForge AI MVP
-          </p>
-          <h1 className="text-5xl font-bold mb-3">LearnForge AI</h1>
-          <p className="text-slate-600 text-lg">
-            Learn anything. Build anything. Improve everything. Troubleshoot
-            anything.
-          </p>
+        <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-blue-600 mb-2">
+              LearnForge AI MVP
+            </p>
+            <h1 className="text-5xl font-bold mb-3">LearnForge AI</h1>
+            <p className="text-slate-600 text-lg">
+              Learn anything. Build anything. Improve everything. Troubleshoot
+              anything.
+            </p>
+          </div>
+
+          <div className="bg-white border rounded-2xl p-4 text-sm">
+            <p className="text-slate-500">Signed in as</p>
+            <p className="font-semibold mb-3">{user.email}</p>
+            <button
+              onClick={logout}
+              className="bg-slate-900 hover:bg-black text-white px-4 py-2 rounded-xl"
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -256,7 +438,7 @@ export default function Home() {
               <div>
                 <h2 className="font-bold text-xl">History</h2>
                 <p className="text-xs text-slate-500">
-                  {history.length} saved chats
+                  {history.length} private chats
                 </p>
               </div>
 
@@ -269,14 +451,14 @@ export default function Home() {
             </div>
 
             <input
-              className="w-full border border-slate-300 rounded-xl px-3 py-2 mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 mb-3 text-sm"
               placeholder="Search history..."
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
             />
 
             <button
-              onClick={loadHistory}
+              onClick={() => loadHistory(user.id)}
               className="w-full bg-slate-900 hover:bg-black text-white px-3 py-2 rounded-xl text-sm mb-4"
             >
               {historyLoading ? "Refreshing..." : "Refresh History"}
@@ -300,19 +482,11 @@ export default function Home() {
                     onClick={() => openHistoryItem(item)}
                     className="w-full text-left"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                        {item.mode || "learn"}
-                      </span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                      {item.mode || "learn"}
+                    </span>
 
-                      {chatId === item.id && (
-                        <span className="text-xs text-blue-600 font-semibold">
-                          Open
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="font-semibold text-sm line-clamp-2">
+                    <p className="font-semibold text-sm line-clamp-2 mt-2">
                       {item.question}
                     </p>
 
@@ -332,7 +506,7 @@ export default function Home() {
 
                   <button
                     onClick={() => deleteHistoryItem(item.id)}
-                    className="mt-3 text-xs text-red-600 hover:text-red-800 font-semibold"
+                    className="mt-3 text-xs text-red-600 font-semibold"
                   >
                     Delete
                   </button>
@@ -349,20 +523,19 @@ export default function Home() {
                     Ask your question
                   </label>
                   <p className="text-sm text-slate-500">
-                    Start with Learn Mode, then use Build, Improve, or
-                    Troubleshoot.
+                    Your chats are saved privately to your account.
                   </p>
                 </div>
 
                 {chatId && (
                   <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
-                    Saved chat
+                    Saved private chat
                   </span>
                 )}
               </div>
 
               <textarea
-                className="w-full border border-slate-300 rounded-2xl p-4 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-2xl p-4 mb-4"
                 rows={5}
                 placeholder="Example: What is a laptop?"
                 value={question}
