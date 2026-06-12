@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
+  const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  "https://learnforge-ai-backend.onrender.com";
 
 type ChatHistoryItem = {
   id: string;
@@ -151,7 +154,7 @@ export default function Home() {
       setImproveAnswer("");
       setTroubleshootAnswer("");
 
-      const res = await fetch("http://127.0.0.1:8000/ask", {
+      const res = await fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, user_id: user.id }),
@@ -178,7 +181,7 @@ export default function Home() {
       setBuilding(true);
       setBuildAnswer("");
 
-      const res = await fetch("http://127.0.0.1:8000/build", {
+      const res = await fetch(`${BACKEND_URL}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
@@ -205,7 +208,7 @@ export default function Home() {
       setImproving(true);
       setImproveAnswer("");
 
-      const res = await fetch("http://127.0.0.1:8000/improve", {
+      const res = await fetch(`${BACKEND_URL}/improve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
@@ -232,7 +235,7 @@ export default function Home() {
       setTroubleshooting(true);
       setTroubleshootAnswer("");
 
-      const res = await fetch("http://127.0.0.1:8000/troubleshoot", {
+      const res = await fetch(`${BACKEND_URL}/troubleshoot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
@@ -260,7 +263,7 @@ export default function Home() {
     try {
       setHistoryLoading(true);
 
-      const res = await fetch(`http://127.0.0.1:8000/history/${activeUserId}`);
+      const res = await fetch(`${BACKEND_URL}/history/${activeUserId}`);
       const data = await res.json();
 
       setHistory(data.history || []);
@@ -279,7 +282,7 @@ export default function Home() {
     if (!confirmDelete) return;
 
     try {
-      await fetch(`http://127.0.0.1:8000/history/${user.id}/${id}`, {
+      await fetch(`${BACKEND_URL}/history/${user.id}/${id}`, {
         method: "DELETE",
       });
 
@@ -316,7 +319,7 @@ export default function Home() {
     try {
       setPdfLoading(true);
 
-      const res = await fetch("http://127.0.0.1:8000/generate-pdf", {
+      const res = await fetch(`${BACKEND_URL}/generate-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content }),
