@@ -106,7 +106,7 @@ def split_text_into_chunks(text: str, chunk_size: int = 1200):
 
 @app.get("/")
 def home():
-    return {"message": "LearnForge AI backend running with RAG v3 source preview"}
+    return {"message": "LearnForge AI backend running with improved RAG v3"}
 
 
 @app.post("/ask")
@@ -445,7 +445,20 @@ def ask_document(request: DocumentAskRequest):
         if not chunks:
             raise HTTPException(status_code=404, detail="No document content found.")
 
-        question_words = request.question.lower().split()
+        stop_words = {
+            "what", "when", "where", "which", "who", "why", "how",
+            "is", "are", "was", "were", "the", "a", "an", "and",
+            "or", "to", "of", "in", "on", "for", "from", "with",
+            "this", "that", "it", "as", "by", "be", "about"
+        }
+
+        question_words = [
+            word.strip(".,?!:;()[]{}").lower()
+            for word in request.question.split()
+            if len(word.strip(".,?!:;()[]{}")) > 2
+            and word.strip(".,?!:;()[]{}").lower() not in stop_words
+        ]
+
         scored_chunks = []
 
         for chunk in chunks:
@@ -453,8 +466,15 @@ def ask_document(request: DocumentAskRequest):
             score = 0
 
             for word in question_words:
-                if len(word) > 2 and word in text:
-                    score += 1
+                if word in text:
+                    score += 2
+
+                word_count = text.count(word)
+                if word_count > 1:
+                    score += word_count
+
+            if request.question.lower() in text:
+                score += 10
 
             scored_chunks.append({
                 "chunk_text": chunk["chunk_text"],
@@ -463,7 +483,11 @@ def ask_document(request: DocumentAskRequest):
             })
 
         scored_chunks.sort(key=lambda x: x["score"], reverse=True)
-        best_chunks = scored_chunks[:8]
+
+        best_chunks = [chunk for chunk in scored_chunks if chunk["score"] > 0][:8]
+
+        if not best_chunks:
+            best_chunks = scored_chunks[:4]
 
         context = "\n\n".join(
             [
@@ -486,6 +510,7 @@ Rules:
 - Do not use Markdown.
 - Do not use # symbols.
 - Do not use * symbols.
+- Be accurate and concise.
 
 Document Context:
 {context}
@@ -510,7 +535,7 @@ Use this structure:
                 {
                     "chunk_index": item["chunk_index"],
                     "score": item["score"],
-                    "preview": item["chunk_text"][:250]
+                    "preview": item["chunk_text"][:300]
                 }
                 for item in best_chunks
             ]
