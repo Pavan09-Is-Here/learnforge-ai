@@ -23,6 +23,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const [chatId, setChatId] = useState("");
@@ -366,7 +367,7 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
-            <div className="relative">
+           <div className="relative">
   <input
     className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-20"
     placeholder="Password"
@@ -377,7 +378,7 @@ export default function Home() {
 
   <button
     type="button"
-    onClick={() => setShowPassword(!showPassword)}
+    onClick={() => setShowPassword((prev) => !prev)}
     className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-semibold"
   >
     {showPassword ? "Hide" : "Show"}
