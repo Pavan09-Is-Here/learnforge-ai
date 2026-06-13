@@ -27,6 +27,11 @@ type DocumentItem = {
   created_at: string;
 };
 
+type DocumentSource = {
+  chunk_index: number;
+  score: number;
+};
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -49,6 +54,7 @@ export default function Home() {
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
   const [documentQuestion, setDocumentQuestion] = useState("");
   const [documentAnswer, setDocumentAnswer] = useState("");
+  const [documentSources, setDocumentSources] = useState<DocumentSource[]>([]);
 
   const [authLoading, setAuthLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -82,7 +88,9 @@ export default function Home() {
 
   const filteredHistory = useMemo(() => {
     const search = historySearch.toLowerCase().trim();
+
     if (!search) return history;
+
     return history.filter((item) =>
       item.question.toLowerCase().includes(search)
     );
@@ -101,7 +109,11 @@ export default function Home() {
 
     try {
       setAuthLoading(true);
-      const { error } = await supabase.auth.signUp({ email, password });
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
       if (error) {
         alert(error.message);
@@ -123,6 +135,7 @@ export default function Home() {
 
     try {
       setAuthLoading(true);
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -148,6 +161,7 @@ export default function Home() {
     setSelectedDocumentId("");
     setDocumentQuestion("");
     setDocumentAnswer("");
+    setDocumentSources([]);
   }
 
   async function askAI() {
@@ -272,12 +286,15 @@ export default function Home() {
 
   async function loadHistory(userId?: string) {
     const activeUserId = userId || user?.id;
+
     if (!activeUserId) return;
 
     try {
       setHistoryLoading(true);
+
       const res = await fetch(`${BACKEND_URL}/history/${activeUserId}`);
       const data = await res.json();
+
       setHistory(data.history || []);
     } catch (error) {
       console.error(error);
@@ -290,6 +307,7 @@ export default function Home() {
     if (!user) return;
 
     const confirmDelete = confirm("Delete this saved chat?");
+
     if (!confirmDelete) return;
 
     try {
@@ -310,6 +328,7 @@ export default function Home() {
 
   async function loadDocuments(userId?: string) {
     const activeUserId = userId || user?.id;
+
     if (!activeUserId) return;
 
     try {
@@ -362,6 +381,7 @@ export default function Home() {
       alert("PDF uploaded successfully.");
       await loadDocuments(user.id);
       setSelectedDocumentId(data.document_id);
+      setDocumentSources([]);
     } catch (error) {
       console.error(error);
       alert("Could not upload document.");
@@ -386,6 +406,7 @@ export default function Home() {
     try {
       setAskingDocument(true);
       setDocumentAnswer("");
+      setDocumentSources([]);
 
       const res = await fetch(`${BACKEND_URL}/documents/ask`, {
         method: "POST",
@@ -401,13 +422,16 @@ export default function Home() {
 
       if (!res.ok) {
         setDocumentAnswer(data.detail || "Could not answer from document.");
+        setDocumentSources([]);
         return;
       }
 
       setDocumentAnswer(data.answer);
+      setDocumentSources(data.sources || []);
     } catch (error) {
       console.error(error);
       setDocumentAnswer("Error connecting to Document Mode.");
+      setDocumentSources([]);
     } finally {
       setAskingDocument(false);
     }
@@ -417,12 +441,16 @@ export default function Home() {
     if (!user) return;
 
     const confirmDelete = confirm("Delete this uploaded document?");
+
     if (!confirmDelete) return;
 
     try {
-      const res = await fetch(`${BACKEND_URL}/documents/${user.id}/${documentId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `${BACKEND_URL}/documents/${user.id}/${documentId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!res.ok) {
         alert("Could not delete document.");
@@ -433,6 +461,7 @@ export default function Home() {
         setSelectedDocumentId("");
         setDocumentQuestion("");
         setDocumentAnswer("");
+        setDocumentSources([]);
       }
 
       await loadDocuments(user.id);
@@ -757,6 +786,7 @@ export default function Home() {
               documentQuestion={documentQuestion}
               setDocumentQuestion={setDocumentQuestion}
               documentAnswer={documentAnswer}
+              documentSources={documentSources}
               uploadDocument={uploadDocument}
               loadDocuments={() => loadDocuments(user.id)}
               askFromDocument={askFromDocument}
@@ -830,6 +860,7 @@ function DocumentMode({
   documentQuestion,
   setDocumentQuestion,
   documentAnswer,
+  documentSources,
   uploadDocument,
   loadDocuments,
   askFromDocument,
@@ -844,6 +875,7 @@ function DocumentMode({
   documentQuestion: string;
   setDocumentQuestion: (q: string) => void;
   documentAnswer: string;
+  documentSources: DocumentSource[];
   uploadDocument: (file: File | null) => void;
   loadDocuments: () => void;
   askFromDocument: () => void;
@@ -926,6 +958,23 @@ function DocumentMode({
       {documentAnswer && (
         <div className="mt-6 border rounded-2xl p-4 bg-slate-50 whitespace-pre-wrap leading-7">
           {documentAnswer}
+        </div>
+      )}
+
+      {documentSources.length > 0 && (
+        <div className="mt-4 border rounded-2xl p-4 bg-white">
+          <h3 className="font-bold mb-2">Sources Used</h3>
+
+          <div className="flex gap-2 flex-wrap">
+            {documentSources.map((source) => (
+              <span
+                key={source.chunk_index}
+                className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full"
+              >
+                Chunk {source.chunk_index} - Score {source.score}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </section>
