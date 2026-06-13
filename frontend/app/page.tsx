@@ -367,9 +367,9 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
-           <div className="relative">
+           <div className="flex gap-2">
   <input
-    className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-20"
+    className="flex-1 border border-slate-300 rounded-xl px-4 py-3"
     placeholder="Password"
     type={showPassword ? "text" : "password"}
     value={password}
@@ -378,8 +378,8 @@ export default function Home() {
 
   <button
     type="button"
-    onClick={() => setShowPassword((prev) => !prev)}
-    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-semibold"
+    onClick={() => setShowPassword(!showPassword)}
+    className="bg-gray-200 px-4 rounded-xl font-bold"
   >
     {showPassword ? "Hide" : "Show"}
   </button>
