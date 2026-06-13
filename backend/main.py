@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -7,8 +7,10 @@ from groq import Groq
 from supabase import create_client
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from pypdf import PdfReader
 import textwrap
 import os
+import io
 
 load_dotenv()
 
@@ -16,8 +18,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://192.168.0.79:3000",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,6 +50,12 @@ class ModeRequest(BaseModel):
 class PDFRequest(BaseModel):
     title: str
     content: str
+
+
+class DocumentAskRequest(BaseModel):
+    question: str
+    user_id: str
+    document_id: str
 
 
 def validate_question(question: str):
@@ -84,9 +96,21 @@ def safe_update_chat(chat_id: str, user_id: str, data: dict):
         print("SUPABASE UPDATE ERROR:", error)
 
 
+def split_text_into_chunks(text: str, chunk_size: int = 1200):
+    clean_text = " ".join(text.split())
+    chunks = []
+
+    for i in range(0, len(clean_text), chunk_size):
+        chunk = clean_text[i:i + chunk_size]
+        if chunk.strip():
+            chunks.append(chunk)
+
+    return chunks
+
+
 @app.get("/")
 def home():
-    return {"message": "LearnForge AI backend running with private history"}
+    return {"message": "LearnForge AI backend running with RAG"}
 
 
 @app.post("/ask")
@@ -333,6 +357,153 @@ def delete_history(user_id: str, chat_id: str):
     except Exception as error:
         print("SUPABASE DELETE ERROR:", error)
         raise HTTPException(status_code=500, detail="Could not delete chat.")
+
+
+@app.post("/documents/upload")
+async def upload_document(
+    user_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported for now.")
+
+    try:
+        file_bytes = await file.read()
+        pdf_reader = PdfReader(io.BytesIO(file_bytes))
+
+        full_text = ""
+
+        for page in pdf_reader.pages:
+            page_text = page.extract_text() or ""
+            full_text += page_text + "\n"
+
+        if not full_text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from this PDF.")
+
+        doc_result = supabase.table("documents").insert({
+            "user_id": user_id,
+            "title": file.filename
+        }).execute()
+
+        document_id = doc_result.data[0]["id"]
+
+        chunks = split_text_into_chunks(full_text)
+
+        chunk_rows = []
+
+        for index, chunk in enumerate(chunks):
+            chunk_rows.append({
+                "document_id": document_id,
+                "user_id": user_id,
+                "chunk_text": chunk,
+                "chunk_index": index
+            })
+
+        supabase.table("document_chunks").insert(chunk_rows).execute()
+
+        return {
+            "message": "Document uploaded successfully",
+            "document_id": document_id,
+            "title": file.filename,
+            "chunks": len(chunks)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as error:
+        print("DOCUMENT UPLOAD ERROR:", error)
+        raise HTTPException(status_code=500, detail="Could not upload document.")
+
+
+@app.get("/documents/{user_id}")
+def list_documents(user_id: str):
+    try:
+        result = (
+            supabase
+            .table("documents")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        return {"documents": result.data}
+
+    except Exception as error:
+        print("LIST DOCUMENTS ERROR:", error)
+        return {"documents": []}
+
+
+@app.post("/documents/ask")
+def ask_document(request: DocumentAskRequest):
+    validate_question(request.question)
+
+    try:
+        chunks_result = (
+            supabase
+            .table("document_chunks")
+            .select("chunk_text")
+            .eq("document_id", request.document_id)
+            .eq("user_id", request.user_id)
+            .order("chunk_index")
+            .limit(8)
+            .execute()
+        )
+
+        chunks = chunks_result.data
+
+        if not chunks:
+            raise HTTPException(status_code=404, detail="No document content found.")
+
+        context = "\n\n".join([item["chunk_text"] for item in chunks])
+
+        prompt = f"""
+You are LearnForge AI Document Mode.
+
+Answer the user's question using ONLY the document context below.
+If the answer is not found in the document, clearly say:
+"I could not find this information in the uploaded document."
+
+Document Context:
+{context}
+
+User Question:
+{request.question}
+
+Important Formatting Rules:
+- Do not use Markdown.
+- Do not use # symbols.
+- Do not use * symbols.
+- Use clean plain text.
+- Use numbered sections if helpful.
+- Keep the answer clear and beginner-friendly.
+"""
+
+        answer = generate_ai_response(prompt)
+
+        return {
+            "answer": answer
+        }
+
+    except HTTPException:
+        raise
+    except Exception as error:
+        print("DOCUMENT ASK ERROR:", error)
+        raise HTTPException(status_code=500, detail="Could not answer from document.")
+
+
+@app.delete("/documents/{user_id}/{document_id}")
+def delete_document(user_id: str, document_id: str):
+    try:
+        supabase.table("documents").delete().eq("id", document_id).eq("user_id", user_id).execute()
+
+        return {
+            "message": "Document deleted successfully"
+        }
+
+    except Exception as error:
+        print("DELETE DOCUMENT ERROR:", error)
+        raise HTTPException(status_code=500, detail="Could not delete document.")
 
 
 @app.post("/generate-pdf")

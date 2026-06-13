@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
-  const BACKEND_URL =
+
+const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   "https://learnforge-ai-backend.onrender.com";
 
@@ -17,6 +18,13 @@ type ChatHistoryItem = {
   mode?: string;
   created_at: string;
   user_id?: string;
+};
+
+type DocumentItem = {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
 };
 
 export default function Home() {
@@ -37,6 +45,11 @@ export default function Home() {
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [historySearch, setHistorySearch] = useState("");
 
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  const [documentQuestion, setDocumentQuestion] = useState("");
+  const [documentAnswer, setDocumentAnswer] = useState("");
+
   const [authLoading, setAuthLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -44,6 +57,9 @@ export default function Home() {
   const [troubleshooting, setTroubleshooting] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [documentLoading, setDocumentLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [askingDocument, setAskingDocument] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -60,14 +76,13 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       loadHistory(user.id);
+      loadDocuments(user.id);
     }
   }, [user]);
 
   const filteredHistory = useMemo(() => {
     const search = historySearch.toLowerCase().trim();
-
     if (!search) return history;
-
     return history.filter((item) =>
       item.question.toLowerCase().includes(search)
     );
@@ -86,11 +101,7 @@ export default function Home() {
 
     try {
       setAuthLoading(true);
-
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signUp({ email, password });
 
       if (error) {
         alert(error.message);
@@ -112,7 +123,6 @@ export default function Home() {
 
     try {
       setAuthLoading(true);
-
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -134,6 +144,10 @@ export default function Home() {
     setUser(null);
     newChat();
     setHistory([]);
+    setDocuments([]);
+    setSelectedDocumentId("");
+    setDocumentQuestion("");
+    setDocumentAnswer("");
   }
 
   async function askAI() {
@@ -258,15 +272,12 @@ export default function Home() {
 
   async function loadHistory(userId?: string) {
     const activeUserId = userId || user?.id;
-
     if (!activeUserId) return;
 
     try {
       setHistoryLoading(true);
-
       const res = await fetch(`${BACKEND_URL}/history/${activeUserId}`);
       const data = await res.json();
-
       setHistory(data.history || []);
     } catch (error) {
       console.error(error);
@@ -279,7 +290,6 @@ export default function Home() {
     if (!user) return;
 
     const confirmDelete = confirm("Delete this saved chat?");
-
     if (!confirmDelete) return;
 
     try {
@@ -295,6 +305,140 @@ export default function Home() {
     } catch (error) {
       console.error(error);
       alert("Could not delete chat.");
+    }
+  }
+
+  async function loadDocuments(userId?: string) {
+    const activeUserId = userId || user?.id;
+    if (!activeUserId) return;
+
+    try {
+      setDocumentLoading(true);
+
+      const res = await fetch(`${BACKEND_URL}/documents/${activeUserId}`);
+      const data = await res.json();
+
+      setDocuments(data.documents || []);
+    } catch (error) {
+      console.error(error);
+      alert("Could not load documents.");
+    } finally {
+      setDocumentLoading(false);
+    }
+  }
+
+  async function uploadDocument(file: File | null) {
+    if (!user) return;
+
+    if (!file) {
+      alert("Please choose a PDF file.");
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Only PDF files are supported for now.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append("user_id", user.id);
+      formData.append("file", file);
+
+      const res = await fetch(`${BACKEND_URL}/documents/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.detail || "Upload failed.");
+        return;
+      }
+
+      alert("PDF uploaded successfully.");
+      await loadDocuments(user.id);
+      setSelectedDocumentId(data.document_id);
+    } catch (error) {
+      console.error(error);
+      alert("Could not upload document.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function askFromDocument() {
+    if (!user) return;
+
+    if (!selectedDocumentId) {
+      alert("Please select a document first.");
+      return;
+    }
+
+    if (!documentQuestion.trim()) {
+      alert("Please type a document question.");
+      return;
+    }
+
+    try {
+      setAskingDocument(true);
+      setDocumentAnswer("");
+
+      const res = await fetch(`${BACKEND_URL}/documents/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          document_id: selectedDocumentId,
+          question: documentQuestion,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDocumentAnswer(data.detail || "Could not answer from document.");
+        return;
+      }
+
+      setDocumentAnswer(data.answer);
+    } catch (error) {
+      console.error(error);
+      setDocumentAnswer("Error connecting to Document Mode.");
+    } finally {
+      setAskingDocument(false);
+    }
+  }
+
+  async function deleteDocument(documentId: string) {
+    if (!user) return;
+
+    const confirmDelete = confirm("Delete this uploaded document?");
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/documents/${user.id}/${documentId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        alert("Could not delete document.");
+        return;
+      }
+
+      if (selectedDocumentId === documentId) {
+        setSelectedDocumentId("");
+        setDocumentQuestion("");
+        setDocumentAnswer("");
+      }
+
+      await loadDocuments(user.id);
+    } catch (error) {
+      console.error(error);
+      alert("Could not delete document.");
     }
   }
 
@@ -367,23 +511,23 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
-           <div className="flex gap-2">
-  <input
-    className="flex-1 border border-slate-300 rounded-xl px-4 py-3"
-    placeholder="Password"
-    type={showPassword ? "text" : "password"}
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-  />
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border border-slate-300 rounded-xl px-4 py-3"
+                placeholder="Password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
 
-  <button
-    type="button"
-    onClick={() => setShowPassword(!showPassword)}
-    className="bg-gray-200 px-4 rounded-xl font-bold"
-  >
-    {showPassword ? "Hide" : "Show"}
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="bg-gray-200 px-4 rounded-xl font-bold"
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
 
             <button
               onClick={authMode === "login" ? login : signUp}
@@ -606,6 +750,22 @@ export default function Home() {
               </div>
             </div>
 
+            <DocumentMode
+              documents={documents}
+              selectedDocumentId={selectedDocumentId}
+              setSelectedDocumentId={setSelectedDocumentId}
+              documentQuestion={documentQuestion}
+              setDocumentQuestion={setDocumentQuestion}
+              documentAnswer={documentAnswer}
+              uploadDocument={uploadDocument}
+              loadDocuments={() => loadDocuments(user.id)}
+              askFromDocument={askFromDocument}
+              deleteDocument={deleteDocument}
+              documentLoading={documentLoading}
+              uploading={uploading}
+              askingDocument={askingDocument}
+            />
+
             {answer && (
               <AnswerCard
                 title="Learn Mode Answer"
@@ -660,6 +820,115 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+function DocumentMode({
+  documents,
+  selectedDocumentId,
+  setSelectedDocumentId,
+  documentQuestion,
+  setDocumentQuestion,
+  documentAnswer,
+  uploadDocument,
+  loadDocuments,
+  askFromDocument,
+  deleteDocument,
+  documentLoading,
+  uploading,
+  askingDocument,
+}: {
+  documents: DocumentItem[];
+  selectedDocumentId: string;
+  setSelectedDocumentId: (id: string) => void;
+  documentQuestion: string;
+  setDocumentQuestion: (q: string) => void;
+  documentAnswer: string;
+  uploadDocument: (file: File | null) => void;
+  loadDocuments: () => void;
+  askFromDocument: () => void;
+  deleteDocument: (id: string) => void;
+  documentLoading: boolean;
+  uploading: boolean;
+  askingDocument: boolean;
+}) {
+  return (
+    <section className="bg-white rounded-3xl shadow-sm border p-6 mb-6">
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <span className="inline-block text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full mb-2">
+            RAG Knowledge Base
+          </span>
+          <h2 className="text-2xl font-bold">Ask from PDF</h2>
+          <p className="text-sm text-slate-500">
+            Upload a PDF and ask questions based on its content.
+          </p>
+        </div>
+
+        <button
+          onClick={loadDocuments}
+          className="bg-slate-900 hover:bg-black text-white px-4 py-2 rounded-xl font-semibold"
+        >
+          {documentLoading ? "Loading..." : "Refresh Docs"}
+        </button>
+      </div>
+
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={(e) => uploadDocument(e.target.files?.[0] || null)}
+        className="w-full border border-slate-300 rounded-xl p-3 mb-4"
+      />
+
+      {uploading && (
+        <p className="text-sm text-blue-600 font-semibold mb-4">
+          Uploading and reading PDF...
+        </p>
+      )}
+
+      <select
+        className="w-full border border-slate-300 rounded-xl p-3 mb-4"
+        value={selectedDocumentId}
+        onChange={(e) => setSelectedDocumentId(e.target.value)}
+      >
+        <option value="">Select uploaded document</option>
+        {documents.map((doc) => (
+          <option key={doc.id} value={doc.id}>
+            {doc.title}
+          </option>
+        ))}
+      </select>
+
+      {selectedDocumentId && (
+        <button
+          onClick={() => deleteDocument(selectedDocumentId)}
+          className="mb-4 text-sm text-red-600 font-semibold"
+        >
+          Delete Selected Document
+        </button>
+      )}
+
+      <textarea
+        className="w-full border border-slate-300 rounded-2xl p-4 mb-4"
+        rows={4}
+        placeholder="Ask a question from the selected PDF..."
+        value={documentQuestion}
+        onChange={(e) => setDocumentQuestion(e.target.value)}
+      />
+
+      <button
+        onClick={askFromDocument}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-semibold"
+      >
+        {askingDocument ? "Reading Document..." : "Ask From PDF"}
+      </button>
+
+      {documentAnswer && (
+        <div className="mt-6 border rounded-2xl p-4 bg-slate-50 whitespace-pre-wrap leading-7">
+          {documentAnswer}
+        </div>
+      )}
+    </section>
   );
 }
 
