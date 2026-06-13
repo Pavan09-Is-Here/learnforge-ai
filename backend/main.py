@@ -35,6 +35,7 @@ supabase = create_client(
 class AskRequest(BaseModel):
     question: str
     user_id: str
+    chat_id: str | None = None
 
 
 class ModeRequest(BaseModel):
@@ -70,10 +71,7 @@ def generate_ai_response(prompt: str):
         return response.choices[0].message.content
     except Exception as error:
         print("GROQ ERROR:", error)
-        raise HTTPException(
-            status_code=503,
-            detail="AI service temporarily unavailable. Please try again."
-        )
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable.")
 
 
 def safe_insert_chat(data: dict):
@@ -92,6 +90,49 @@ def safe_update_chat(chat_id: str, user_id: str, data: dict):
         print("SUPABASE UPDATE ERROR:", error)
 
 
+def save_message(chat_id: str, user_id: str, role: str, content: str):
+    try:
+        supabase.table("chat_messages").insert({
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content
+        }).execute()
+    except Exception as error:
+        print("SAVE MESSAGE ERROR:", error)
+
+
+def get_recent_messages(chat_id: str, user_id: str, limit: int = 8):
+    try:
+        result = (
+            supabase
+            .table("chat_messages")
+            .select("*")
+            .eq("chat_id", chat_id)
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception as error:
+        print("GET MESSAGES ERROR:", error)
+        return []
+
+
+def build_memory_context(messages):
+    if not messages:
+        return ""
+
+    context = "Previous conversation:\n"
+
+    for msg in messages:
+        role = "User" if msg["role"] == "user" else "AI"
+        context += f"{role}: {msg['content']}\n\n"
+
+    return context
+
+
 def split_text_into_chunks(text: str, chunk_size: int = 1200):
     clean_text = " ".join(text.split())
     chunks = []
@@ -106,17 +147,34 @@ def split_text_into_chunks(text: str, chunk_size: int = 1200):
 
 @app.get("/")
 def home():
-    return {"message": "LearnForge AI backend running with improved RAG v3"}
+    return {"message": "LearnForge AI backend running with conversation memory"}
 
 
 @app.post("/ask")
 def ask_question(request: AskRequest):
     validate_question(request.question)
 
+    chat_id = request.chat_id
+
+    if not chat_id:
+        chat_id = safe_insert_chat({
+            "question": request.question,
+            "learn_answer": "",
+            "mode": "learn",
+            "user_id": request.user_id
+        })
+
+    previous_messages = get_recent_messages(chat_id, request.user_id)
+    memory_context = build_memory_context(previous_messages)
+
     prompt = f"""
 You are LearnForge AI.
 
-Explain the user's question clearly using this structure:
+Use previous conversation context when helpful.
+
+{memory_context}
+
+Now answer the user's latest question clearly using this structure:
 
 1. Topic Title
 2. Quick Answer
@@ -141,18 +199,20 @@ Important Formatting Rules:
 - Use dash bullets instead of star bullets.
 - Make the response beginner-friendly and practical.
 
-User Question:
+Latest User Question:
 {request.question}
 """
 
     answer = generate_ai_response(prompt)
 
-    chat_id = safe_insert_chat({
+    safe_update_chat(chat_id, request.user_id, {
         "question": request.question,
         "learn_answer": answer,
-        "mode": "learn",
-        "user_id": request.user_id
+        "mode": "learn"
     })
+
+    save_message(chat_id, request.user_id, "user", request.question)
+    save_message(chat_id, request.user_id, "assistant", answer)
 
     return {"chat_id": chat_id, "answer": answer}
 
@@ -187,23 +247,14 @@ Use this structure:
 15. Final Checklist
 16. Summary
 
-Important Formatting Rules:
-- Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
-- Use clean plain text.
-- Use numbered section titles.
-- Use dash bullets instead of star bullets.
+Use clean plain text. Do not use Markdown symbols.
 """
 
     answer = generate_ai_response(prompt)
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {
-            "build_answer": answer,
-            "mode": "build"
-        })
+        safe_update_chat(chat_id, request.user_id, {"build_answer": answer, "mode": "build"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
@@ -226,40 +277,14 @@ Create a complete improvement guide for:
 
 {request.question}
 
-Use this structure:
-
-1. Improvement Title
-2. Current Version / Current Understanding
-3. Main Weaknesses
-4. Improvement Goals
-5. Performance Improvements
-6. Cost Reduction Ideas
-7. Quality Improvements
-8. Better Tools or Materials
-9. Step-by-Step Improvement Plan
-10. Testing After Improvement
-11. Before vs After Comparison
-12. Risks or Limitations
-13. Final Recommendations
-14. Summary
-
-Important Formatting Rules:
-- Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
-- Use clean plain text.
-- Use numbered section titles.
-- Use dash bullets instead of star bullets.
+Use clean numbered sections and beginner-friendly explanation.
 """
 
     answer = generate_ai_response(prompt)
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {
-            "improve_answer": answer,
-            "mode": "improve"
-        })
+        safe_update_chat(chat_id, request.user_id, {"improve_answer": answer, "mode": "improve"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
@@ -282,37 +307,14 @@ Create a complete troubleshooting guide for:
 
 {request.question}
 
-Use this structure:
-
-1. Troubleshooting Title
-2. Problem Summary
-3. Possible Causes
-4. Most Likely Cause
-5. Diagnostic Steps
-6. Step-by-Step Fixes
-7. What Not To Do
-8. Prevention Tips
-9. When To Ask An Expert
-10. Final Checklist
-11. Summary
-
-Important Formatting Rules:
-- Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
-- Use clean plain text.
-- Use numbered section titles.
-- Use dash bullets instead of star bullets.
+Use clean numbered sections and beginner-friendly explanation.
 """
 
     answer = generate_ai_response(prompt)
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {
-            "troubleshoot_answer": answer,
-            "mode": "troubleshoot"
-        })
+        safe_update_chat(chat_id, request.user_id, {"troubleshoot_answer": answer, "mode": "troubleshoot"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
@@ -342,6 +344,12 @@ def get_history(user_id: str):
         return {"history": []}
 
 
+@app.get("/messages/{user_id}/{chat_id}")
+def get_messages(user_id: str, chat_id: str):
+    messages = get_recent_messages(chat_id, user_id, limit=50)
+    return {"messages": messages}
+
+
 @app.delete("/history/{user_id}/{chat_id}")
 def delete_history(user_id: str, chat_id: str):
     try:
@@ -353,10 +361,7 @@ def delete_history(user_id: str, chat_id: str):
 
 
 @app.post("/documents/upload")
-async def upload_document(
-    user_id: str = Form(...),
-    file: UploadFile = File(...)
-):
+async def upload_document(user_id: str = Form(...), file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported for now.")
 
@@ -418,9 +423,7 @@ def list_documents(user_id: str):
             .order("created_at", desc=True)
             .execute()
         )
-
         return {"documents": result.data}
-
     except Exception as error:
         print("LIST DOCUMENTS ERROR:", error)
         return {"documents": []}
@@ -508,8 +511,6 @@ Rules:
 - Use clear beginner-friendly explanation.
 - Mention which source chunks helped.
 - Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
 - Be accurate and concise.
 
 Document Context:
@@ -552,11 +553,7 @@ Use this structure:
 def delete_document(user_id: str, document_id: str):
     try:
         supabase.table("documents").delete().eq("id", document_id).eq("user_id", user_id).execute()
-
-        return {
-            "message": "Document deleted successfully"
-        }
-
+        return {"message": "Document deleted successfully"}
     except Exception as error:
         print("DELETE DOCUMENT ERROR:", error)
         raise HTTPException(status_code=500, detail="Could not delete document.")

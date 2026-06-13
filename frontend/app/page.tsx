@@ -20,6 +20,15 @@ type ChatHistoryItem = {
   user_id?: string;
 };
 
+type ChatMessage = {
+  id: string;
+  chat_id: string;
+  user_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+};
+
 type DocumentItem = {
   id: string;
   user_id: string;
@@ -42,6 +51,7 @@ export default function Home() {
 
   const [chatId, setChatId] = useState("");
   const [question, setQuestion] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   const [answer, setAnswer] = useState("");
   const [buildAnswer, setBuildAnswer] = useState("");
@@ -176,24 +186,51 @@ export default function Home() {
       return;
     }
 
+    const userQuestion = question;
+
     try {
       setLoading(true);
-      setChatId("");
-      setAnswer("");
-      setBuildAnswer("");
-      setImproveAnswer("");
-      setTroubleshootAnswer("");
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          chat_id: chatId,
+          user_id: user.id,
+          role: "user",
+          content: userQuestion,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      setQuestion("");
 
       const res = await fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, user_id: user.id }),
+        body: JSON.stringify({
+          question: userQuestion,
+          user_id: user.id,
+          chat_id: chatId || null,
+        }),
       });
 
       const data = await res.json();
 
       setChatId(data.chat_id);
       setAnswer(data.answer);
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          chat_id: data.chat_id,
+          user_id: user.id,
+          role: "assistant",
+          content: data.answer,
+          created_at: new Date().toISOString(),
+        },
+      ]);
 
       await loadHistory(user.id);
     } catch (error) {
@@ -214,7 +251,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -241,7 +278,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/improve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -268,7 +305,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/troubleshoot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, chat_id: chatId, user_id: user.id }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
       });
 
       const data = await res.json();
@@ -300,6 +337,18 @@ export default function Home() {
       console.error(error);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function loadMessages(userId: string, activeChatId: string) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/messages/${userId}/${activeChatId}`);
+      const data = await res.json();
+
+      setChatMessages(data.messages || []);
+    } catch (error) {
+      console.error(error);
+      setChatMessages([]);
     }
   }
 
@@ -468,18 +517,23 @@ export default function Home() {
     }
   }
 
-  function openHistoryItem(item: ChatHistoryItem) {
+  async function openHistoryItem(item: ChatHistoryItem) {
+    if (!user) return;
+
     setChatId(item.id || "");
-    setQuestion(item.question || "");
+    setQuestion("");
     setAnswer(item.learn_answer || "");
     setBuildAnswer(item.build_answer || "");
     setImproveAnswer(item.improve_answer || "");
     setTroubleshootAnswer(item.troubleshoot_answer || "");
+
+    await loadMessages(user.id, item.id);
   }
 
   function newChat() {
     setChatId("");
     setQuestion("");
+    setChatMessages([]);
     setAnswer("");
     setBuildAnswer("");
     setImproveAnswer("");
@@ -674,15 +728,6 @@ export default function Home() {
                       {item.question}
                     </p>
 
-                    <div className="flex gap-1 flex-wrap mt-2">
-                      {item.learn_answer && <MiniBadge label="Learn" />}
-                      {item.build_answer && <MiniBadge label="Build" />}
-                      {item.improve_answer && <MiniBadge label="Improve" />}
-                      {item.troubleshoot_answer && (
-                        <MiniBadge label="Troubleshoot" />
-                      )}
-                    </div>
-
                     <p className="text-xs text-slate-500 mt-2">
                       {new Date(item.created_at).toLocaleString()}
                     </p>
@@ -707,21 +752,21 @@ export default function Home() {
                     Ask your question
                   </label>
                   <p className="text-sm text-slate-500">
-                    Your chats are saved privately to your account.
+                    Ask follow-up questions in the same chat. LearnForge will remember context.
                   </p>
                 </div>
 
                 {chatId && (
                   <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
-                    Saved private chat
+                    Memory active
                   </span>
                 )}
               </div>
 
               <textarea
                 className="w-full border border-slate-300 rounded-2xl p-4 mb-4"
-                rows={5}
-                placeholder="Example: What is a laptop?"
+                rows={4}
+                placeholder="Example: What is Machine Learning? Then ask: explain it more simply"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
               />
@@ -731,10 +776,10 @@ export default function Home() {
                   onClick={askAI}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-semibold"
                 >
-                  {loading ? "Thinking..." : "Ask AI"}
+                  {loading ? "Thinking..." : chatId ? "Send Follow-up" : "Ask AI"}
                 </button>
 
-                {answer && (
+                {chatMessages.length > 0 && (
                   <>
                     <button
                       onClick={buildThis}
@@ -761,20 +806,51 @@ export default function Home() {
                   </>
                 )}
 
-                {(answer ||
-                  buildAnswer ||
-                  improveAnswer ||
-                  troubleshootAnswer ||
-                  question) && (
+                {(chatMessages.length > 0 || question) && (
                   <button
                     onClick={newChat}
                     className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-6 py-3 rounded-2xl font-semibold"
                   >
-                    Clear Current
+                    New Chat
                   </button>
                 )}
               </div>
             </div>
+
+            {chatMessages.length > 0 && (
+              <section className="bg-white rounded-3xl shadow-sm border p-6 mb-6">
+                <h2 className="text-2xl font-bold mb-4">Conversation</h2>
+
+                <div className="space-y-4">
+                  {chatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`rounded-2xl p-4 whitespace-pre-wrap leading-7 ${
+                        msg.role === "user"
+                          ? "bg-blue-50 border border-blue-100"
+                          : "bg-slate-50 border"
+                      }`}
+                    >
+                      <p className="text-xs font-bold mb-2 text-slate-500">
+                        {msg.role === "user" ? "You" : "LearnForge AI"}
+                      </p>
+                      {msg.content}
+                    </div>
+                  ))}
+                </div>
+
+                {answer && (
+                  <button
+                    onClick={() =>
+                      downloadPDF(answer, "LearnForge AI - Latest Answer")
+                    }
+                    className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-semibold"
+                  >
+                    {pdfLoading ? "Generating..." : "Download Latest Answer PDF"}
+                  </button>
+                )}
+              </section>
+            )}
 
             <DocumentMode
               documents={documents}
@@ -792,18 +868,6 @@ export default function Home() {
               uploading={uploading}
               askingDocument={askingDocument}
             />
-
-            {answer && (
-              <AnswerCard
-                title="Learn Mode Answer"
-                badge="Learn"
-                content={answer}
-                pdfLoading={pdfLoading}
-                onDownload={() =>
-                  downloadPDF(answer, "LearnForge AI - Learn Mode")
-                }
-              />
-            )}
 
             {buildAnswer && (
               <AnswerCard
@@ -979,14 +1043,6 @@ function DocumentMode({
         </div>
       )}
     </section>
-  );
-}
-
-function MiniBadge({ label }: { label: string }) {
-  return (
-    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-      {label}
-    </span>
   );
 }
 
