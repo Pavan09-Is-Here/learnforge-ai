@@ -110,7 +110,7 @@ def split_text_into_chunks(text: str, chunk_size: int = 1200):
 
 @app.get("/")
 def home():
-    return {"message": "LearnForge AI backend running with RAG"}
+    return {"message": "LearnForge AI backend running with RAG v2"}
 
 
 @app.post("/ask")
@@ -201,7 +201,6 @@ Important Formatting Rules:
 """
 
     answer = generate_ai_response(prompt)
-
     chat_id = request.chat_id
 
     if chat_id:
@@ -258,7 +257,6 @@ Important Formatting Rules:
 """
 
     answer = generate_ai_response(prompt)
-
     chat_id = request.chat_id
 
     if chat_id:
@@ -312,7 +310,6 @@ Important Formatting Rules:
 """
 
     answer = generate_ai_response(prompt)
-
     chat_id = request.chat_id
 
     if chat_id:
@@ -386,7 +383,6 @@ async def upload_document(
         }).execute()
 
         document_id = doc_result.data[0]["id"]
-
         chunks = split_text_into_chunks(full_text)
 
         chunk_rows = []
@@ -442,11 +438,9 @@ def ask_document(request: DocumentAskRequest):
         chunks_result = (
             supabase
             .table("document_chunks")
-            .select("chunk_text")
+            .select("chunk_text, chunk_index")
             .eq("document_id", request.document_id)
             .eq("user_id", request.user_id)
-            .order("chunk_index")
-            .limit(8)
             .execute()
         )
 
@@ -455,14 +449,48 @@ def ask_document(request: DocumentAskRequest):
         if not chunks:
             raise HTTPException(status_code=404, detail="No document content found.")
 
-        context = "\n\n".join([item["chunk_text"] for item in chunks])
+        question_words = request.question.lower().split()
+        scored_chunks = []
+
+        for chunk in chunks:
+            text = chunk["chunk_text"].lower()
+            score = 0
+
+            for word in question_words:
+                if len(word) > 2 and word in text:
+                    score += 1
+
+            scored_chunks.append({
+                "chunk_text": chunk["chunk_text"],
+                "chunk_index": chunk["chunk_index"],
+                "score": score
+            })
+
+        scored_chunks.sort(key=lambda x: x["score"], reverse=True)
+
+        best_chunks = scored_chunks[:8]
+
+        context = "\n\n".join(
+            [
+                f"Source Chunk {item['chunk_index']}:\n{item['chunk_text']}"
+                for item in best_chunks
+            ]
+        )
 
         prompt = f"""
 You are LearnForge AI Document Mode.
 
 Answer the user's question using ONLY the document context below.
-If the answer is not found in the document, clearly say:
-"I could not find this information in the uploaded document."
+
+Rules:
+- If the answer is not found in the document, say:
+  "I could not find this information in the uploaded document."
+- Do not make up information.
+- Use clear beginner-friendly explanation.
+- Mention which source chunks helped.
+- Do not use Markdown.
+- Do not use # symbols.
+- Do not use * symbols.
 
 Document Context:
 {context}
@@ -470,19 +498,26 @@ Document Context:
 User Question:
 {request.question}
 
-Important Formatting Rules:
-- Do not use Markdown.
-- Do not use # symbols.
-- Do not use * symbols.
-- Use clean plain text.
-- Use numbered sections if helpful.
-- Keep the answer clear and beginner-friendly.
+Use this structure:
+
+1. Direct Answer
+2. Explanation From Document
+3. Important Details
+4. Source Chunks Used
+5. Summary
 """
 
         answer = generate_ai_response(prompt)
 
         return {
-            "answer": answer
+            "answer": answer,
+            "sources": [
+                {
+                    "chunk_index": item["chunk_index"],
+                    "score": item["score"]
+                }
+                for item in best_chunks
+            ]
         }
 
     except HTTPException:
