@@ -30,6 +30,7 @@ type DocumentItem = {
 type DocumentSource = {
   chunk_index: number;
   score: number;
+  preview: string;
 };
 
 export default function Home() {
@@ -286,7 +287,6 @@ export default function Home() {
 
   async function loadHistory(userId?: string) {
     const activeUserId = userId || user?.id;
-
     if (!activeUserId) return;
 
     try {
@@ -307,7 +307,6 @@ export default function Home() {
     if (!user) return;
 
     const confirmDelete = confirm("Delete this saved chat?");
-
     if (!confirmDelete) return;
 
     try {
@@ -328,7 +327,6 @@ export default function Home() {
 
   async function loadDocuments(userId?: string) {
     const activeUserId = userId || user?.id;
-
     if (!activeUserId) return;
 
     try {
@@ -441,7 +439,6 @@ export default function Home() {
     if (!user) return;
 
     const confirmDelete = confirm("Delete this uploaded document?");
-
     if (!confirmDelete) return;
 
     try {
@@ -963,16 +960,20 @@ function DocumentMode({
 
       {documentSources.length > 0 && (
         <div className="mt-4 border rounded-2xl p-4 bg-white">
-          <h3 className="font-bold mb-2">Sources Used</h3>
+          <h3 className="font-bold mb-3">Sources Used</h3>
 
-          <div className="flex gap-2 flex-wrap">
+          <div className="space-y-3">
             {documentSources.map((source) => (
-              <span
+              <div
                 key={source.chunk_index}
-                className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full"
+                className="border rounded-xl p-3 bg-slate-50"
               >
-                Chunk {source.chunk_index} - Score {source.score}
-              </span>
+                <p className="font-semibold text-sm mb-2">
+                  Chunk {source.chunk_index} • Score {source.score}
+                </p>
+
+                <p className="text-sm text-slate-700">{source.preview}</p>
+              </div>
             ))}
           </div>
         </div>

@@ -106,7 +106,7 @@ def split_text_into_chunks(text: str, chunk_size: int = 1200):
 
 @app.get("/")
 def home():
-    return {"message": "LearnForge AI backend running with RAG v2"}
+    return {"message": "LearnForge AI backend running with RAG v3 source preview"}
 
 
 @app.post("/ask")
@@ -463,7 +463,6 @@ def ask_document(request: DocumentAskRequest):
             })
 
         scored_chunks.sort(key=lambda x: x["score"], reverse=True)
-
         best_chunks = scored_chunks[:8]
 
         context = "\n\n".join(
@@ -510,7 +509,8 @@ Use this structure:
             "sources": [
                 {
                     "chunk_index": item["chunk_index"],
-                    "score": item["score"]
+                    "score": item["score"],
+                    "preview": item["chunk_text"][:250]
                 }
                 for item in best_chunks
             ]
