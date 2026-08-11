@@ -8,6 +8,21 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   "https://learnforge-ai-backend.onrender.com";
 
+// The backend identifies the caller from this token, so every request that
+// touches user data must carry it. It never trusts a user id sent by the client.
+async function authHeaders(
+  extra: Record<string, string> = {}
+): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  return { ...extra, Authorization: `Bearer ${token}` };
+}
+
 type ChatHistoryItem = {
   id: string;
   question: string;
@@ -92,8 +107,8 @@ export default function Home() {
 
   useEffect(() => {
     if (user) {
-      loadHistory(user.id);
-      loadDocuments(user.id);
+      loadHistory();
+      loadDocuments();
     }
   }, [user]);
 
@@ -207,10 +222,9 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           question: userQuestion,
-          user_id: user.id,
           chat_id: chatId || null,
         }),
       });
@@ -232,7 +246,7 @@ export default function Home() {
         },
       ]);
 
-      await loadHistory(user.id);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       setAnswer("Error connecting to backend.");
@@ -250,8 +264,8 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/build`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
+        headers: await authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -259,7 +273,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setBuildAnswer(data.answer);
 
-      await loadHistory(user.id);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       setBuildAnswer("Error connecting to Build Mode.");
@@ -277,8 +291,8 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/improve`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
+        headers: await authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -286,7 +300,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setImproveAnswer(data.answer);
 
-      await loadHistory(user.id);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       setImproveAnswer("Error connecting to Improve Mode.");
@@ -304,8 +318,8 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/troubleshoot`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: answer || question, chat_id: chatId, user_id: user.id }),
+        headers: await authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ question: answer || question, chat_id: chatId }),
       });
 
       const data = await res.json();
@@ -313,7 +327,7 @@ export default function Home() {
       setChatId(data.chat_id);
       setTroubleshootAnswer(data.answer);
 
-      await loadHistory(user.id);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       setTroubleshootAnswer("Error connecting to Troubleshoot Mode.");
@@ -322,14 +336,15 @@ export default function Home() {
     }
   }
 
-  async function loadHistory(userId?: string) {
-    const activeUserId = userId || user?.id;
-    if (!activeUserId) return;
+  async function loadHistory() {
+    if (!user) return;
 
     try {
       setHistoryLoading(true);
 
-      const res = await fetch(`${BACKEND_URL}/history/${activeUserId}`);
+      const res = await fetch(`${BACKEND_URL}/history`, {
+        headers: await authHeaders(),
+      });
       const data = await res.json();
 
       setHistory(data.history || []);
@@ -340,9 +355,11 @@ export default function Home() {
     }
   }
 
-  async function loadMessages(userId: string, activeChatId: string) {
+  async function loadMessages(activeChatId: string) {
     try {
-      const res = await fetch(`${BACKEND_URL}/messages/${userId}/${activeChatId}`);
+      const res = await fetch(`${BACKEND_URL}/messages/${activeChatId}`, {
+        headers: await authHeaders(),
+      });
       const data = await res.json();
 
       setChatMessages(data.messages || []);
@@ -359,29 +376,31 @@ export default function Home() {
     if (!confirmDelete) return;
 
     try {
-      await fetch(`${BACKEND_URL}/history/${user.id}/${id}`, {
+      await fetch(`${BACKEND_URL}/history/${id}`, {
         method: "DELETE",
+        headers: await authHeaders(),
       });
 
       if (chatId === id) {
         newChat();
       }
 
-      await loadHistory(user.id);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       alert("Could not delete chat.");
     }
   }
 
-  async function loadDocuments(userId?: string) {
-    const activeUserId = userId || user?.id;
-    if (!activeUserId) return;
+  async function loadDocuments() {
+    if (!user) return;
 
     try {
       setDocumentLoading(true);
 
-      const res = await fetch(`${BACKEND_URL}/documents/${activeUserId}`);
+      const res = await fetch(`${BACKEND_URL}/documents`, {
+        headers: await authHeaders(),
+      });
       const data = await res.json();
 
       setDocuments(data.documents || []);
@@ -410,11 +429,11 @@ export default function Home() {
       setUploading(true);
 
       const formData = new FormData();
-      formData.append("user_id", user.id);
       formData.append("file", file);
 
       const res = await fetch(`${BACKEND_URL}/documents/upload`, {
         method: "POST",
+        headers: await authHeaders(),
         body: formData,
       });
 
@@ -426,7 +445,7 @@ export default function Home() {
       }
 
       alert("PDF uploaded successfully.");
-      await loadDocuments(user.id);
+      await loadDocuments();
       setSelectedDocumentId(data.document_id);
       setDocumentSources([]);
     } catch (error) {
@@ -457,9 +476,8 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/documents/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          user_id: user.id,
           document_id: selectedDocumentId,
           question: documentQuestion,
         }),
@@ -491,12 +509,10 @@ export default function Home() {
     if (!confirmDelete) return;
 
     try {
-      const res = await fetch(
-        `${BACKEND_URL}/documents/${user.id}/${documentId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const res = await fetch(`${BACKEND_URL}/documents/${documentId}`, {
+        method: "DELETE",
+        headers: await authHeaders(),
+      });
 
       if (!res.ok) {
         alert("Could not delete document.");
@@ -510,7 +526,7 @@ export default function Home() {
         setDocumentSources([]);
       }
 
-      await loadDocuments(user.id);
+      await loadDocuments();
     } catch (error) {
       console.error(error);
       alert("Could not delete document.");
@@ -527,7 +543,7 @@ export default function Home() {
     setImproveAnswer(item.improve_answer || "");
     setTroubleshootAnswer(item.troubleshoot_answer || "");
 
-    await loadMessages(user.id, item.id);
+    await loadMessages(item.id);
   }
 
   function newChat() {
@@ -546,7 +562,7 @@ export default function Home() {
 
       const res = await fetch(`${BACKEND_URL}/generate-pdf`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ title, content }),
       });
 
@@ -696,7 +712,7 @@ export default function Home() {
             />
 
             <button
-              onClick={() => loadHistory(user.id)}
+              onClick={() => loadHistory()}
               className="w-full bg-slate-900 hover:bg-black text-white px-3 py-2 rounded-xl text-sm mb-4"
             >
               {historyLoading ? "Refreshing..." : "Refresh History"}
@@ -861,7 +877,7 @@ export default function Home() {
               documentAnswer={documentAnswer}
               documentSources={documentSources}
               uploadDocument={uploadDocument}
-              loadDocuments={() => loadDocuments(user.id)}
+              loadDocuments={() => loadDocuments()}
               askFromDocument={askFromDocument}
               deleteDocument={deleteDocument}
               documentLoading={documentLoading}

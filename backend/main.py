@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -18,6 +18,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
@@ -34,13 +35,11 @@ supabase = create_client(
 
 class AskRequest(BaseModel):
     question: str
-    user_id: str
     chat_id: str | None = None
 
 
 class ModeRequest(BaseModel):
     question: str
-    user_id: str
     chat_id: str | None = None
 
 
@@ -51,8 +50,30 @@ class PDFRequest(BaseModel):
 
 class DocumentAskRequest(BaseModel):
     question: str
-    user_id: str
     document_id: str
+
+
+def get_current_user_id(authorization: str | None = Header(default=None)) -> str:
+    """Resolve the caller's identity from their Supabase access token.
+
+    The user id is always taken from the verified token, never from the request
+    body or URL, so a caller cannot read or modify another user's data.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Not signed in.")
+
+    token = authorization.split(" ", 1)[1].strip()
+
+    try:
+        result = supabase.auth.get_user(token)
+    except Exception as error:
+        print("AUTH ERROR:", error)
+        raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+
+    if not result or not result.user:
+        raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+
+    return result.user.id
 
 
 def validate_question(question: str):
@@ -151,7 +172,7 @@ def home():
 
 
 @app.post("/ask")
-def ask_question(request: AskRequest):
+def ask_question(request: AskRequest, user_id: str = Depends(get_current_user_id)):
     validate_question(request.question)
 
     chat_id = request.chat_id
@@ -161,10 +182,10 @@ def ask_question(request: AskRequest):
             "question": request.question,
             "learn_answer": "",
             "mode": "learn",
-            "user_id": request.user_id
+            "user_id": user_id
         })
 
-    previous_messages = get_recent_messages(chat_id, request.user_id)
+    previous_messages = get_recent_messages(chat_id, user_id)
     memory_context = build_memory_context(previous_messages)
 
     prompt = f"""
@@ -205,20 +226,20 @@ Latest User Question:
 
     answer = generate_ai_response(prompt)
 
-    safe_update_chat(chat_id, request.user_id, {
+    safe_update_chat(chat_id, user_id, {
         "question": request.question,
         "learn_answer": answer,
         "mode": "learn"
     })
 
-    save_message(chat_id, request.user_id, "user", request.question)
-    save_message(chat_id, request.user_id, "assistant", answer)
+    save_message(chat_id, user_id, "user", request.question)
+    save_message(chat_id, user_id, "assistant", answer)
 
     return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/build")
-def build_thing(request: ModeRequest):
+def build_thing(request: ModeRequest, user_id: str = Depends(get_current_user_id)):
     validate_question(request.question)
 
     prompt = f"""
@@ -254,20 +275,20 @@ Use clean plain text. Do not use Markdown symbols.
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {"build_answer": answer, "mode": "build"})
+        safe_update_chat(chat_id, user_id, {"build_answer": answer, "mode": "build"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
             "build_answer": answer,
             "mode": "build",
-            "user_id": request.user_id
+            "user_id": user_id
         })
 
     return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/improve")
-def improve_thing(request: ModeRequest):
+def improve_thing(request: ModeRequest, user_id: str = Depends(get_current_user_id)):
     validate_question(request.question)
 
     prompt = f"""
@@ -284,20 +305,20 @@ Use clean numbered sections and beginner-friendly explanation.
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {"improve_answer": answer, "mode": "improve"})
+        safe_update_chat(chat_id, user_id, {"improve_answer": answer, "mode": "improve"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
             "improve_answer": answer,
             "mode": "improve",
-            "user_id": request.user_id
+            "user_id": user_id
         })
 
     return {"chat_id": chat_id, "answer": answer}
 
 
 @app.post("/troubleshoot")
-def troubleshoot_thing(request: ModeRequest):
+def troubleshoot_thing(request: ModeRequest, user_id: str = Depends(get_current_user_id)):
     validate_question(request.question)
 
     prompt = f"""
@@ -314,20 +335,20 @@ Use clean numbered sections and beginner-friendly explanation.
     chat_id = request.chat_id
 
     if chat_id:
-        safe_update_chat(chat_id, request.user_id, {"troubleshoot_answer": answer, "mode": "troubleshoot"})
+        safe_update_chat(chat_id, user_id, {"troubleshoot_answer": answer, "mode": "troubleshoot"})
     else:
         chat_id = safe_insert_chat({
             "question": request.question,
             "troubleshoot_answer": answer,
             "mode": "troubleshoot",
-            "user_id": request.user_id
+            "user_id": user_id
         })
 
     return {"chat_id": chat_id, "answer": answer}
 
 
-@app.get("/history/{user_id}")
-def get_history(user_id: str):
+@app.get("/history")
+def get_history(user_id: str = Depends(get_current_user_id)):
     try:
         result = (
             supabase
@@ -344,14 +365,14 @@ def get_history(user_id: str):
         return {"history": []}
 
 
-@app.get("/messages/{user_id}/{chat_id}")
-def get_messages(user_id: str, chat_id: str):
+@app.get("/messages/{chat_id}")
+def get_messages(chat_id: str, user_id: str = Depends(get_current_user_id)):
     messages = get_recent_messages(chat_id, user_id, limit=50)
     return {"messages": messages}
 
 
-@app.delete("/history/{user_id}/{chat_id}")
-def delete_history(user_id: str, chat_id: str):
+@app.delete("/history/{chat_id}")
+def delete_history(chat_id: str, user_id: str = Depends(get_current_user_id)):
     try:
         supabase.table("chats").delete().eq("id", chat_id).eq("user_id", user_id).execute()
         return {"message": "Chat deleted successfully"}
@@ -361,7 +382,10 @@ def delete_history(user_id: str, chat_id: str):
 
 
 @app.post("/documents/upload")
-async def upload_document(user_id: str = Form(...), file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported for now.")
 
@@ -412,8 +436,8 @@ async def upload_document(user_id: str = Form(...), file: UploadFile = File(...)
         raise HTTPException(status_code=500, detail="Could not upload document.")
 
 
-@app.get("/documents/{user_id}")
-def list_documents(user_id: str):
+@app.get("/documents")
+def list_documents(user_id: str = Depends(get_current_user_id)):
     try:
         result = (
             supabase
@@ -430,7 +454,7 @@ def list_documents(user_id: str):
 
 
 @app.post("/documents/ask")
-def ask_document(request: DocumentAskRequest):
+def ask_document(request: DocumentAskRequest, user_id: str = Depends(get_current_user_id)):
     validate_question(request.question)
 
     try:
@@ -439,7 +463,7 @@ def ask_document(request: DocumentAskRequest):
             .table("document_chunks")
             .select("chunk_text, chunk_index")
             .eq("document_id", request.document_id)
-            .eq("user_id", request.user_id)
+            .eq("user_id", user_id)
             .execute()
         )
 
@@ -549,8 +573,8 @@ Use this structure:
         raise HTTPException(status_code=500, detail="Could not answer from document.")
 
 
-@app.delete("/documents/{user_id}/{document_id}")
-def delete_document(user_id: str, document_id: str):
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: str, user_id: str = Depends(get_current_user_id)):
     try:
         supabase.table("documents").delete().eq("id", document_id).eq("user_id", user_id).execute()
         return {"message": "Document deleted successfully"}
@@ -560,7 +584,7 @@ def delete_document(user_id: str, document_id: str):
 
 
 @app.post("/generate-pdf")
-def generate_pdf(request: PDFRequest):
+def generate_pdf(request: PDFRequest, user_id: str = Depends(get_current_user_id)):
     if not request.content.strip():
         raise HTTPException(status_code=400, detail="PDF content cannot be empty.")
 
