@@ -15,6 +15,30 @@ alter table public.chat_messages    enable row level security;
 alter table public.documents        enable row level security;
 alter table public.document_chunks  enable row level security;
 
+-- Drop every policy that grants the anon role access.
+--
+-- This is the part that actually matters. RLS was already enabled on these
+-- tables, but they carried policies like "Allow read chats" granted to anon,
+-- added back when the backend still used the anon key. Postgres combines
+-- permissive policies with OR, so a single anon policy re-opens the table no
+-- matter what other policies exist. Enabling RLS alone changed nothing.
+--
+-- Nothing needs anon access any more: the backend uses the service role key,
+-- and the frontend only uses Supabase for authentication.
+
+do $$
+declare p record;
+begin
+  for p in
+    select tablename, policyname from pg_policies
+    where schemaname = 'public'
+      and tablename in ('chats','chat_messages','documents','document_chunks')
+      and 'anon' = any(roles)
+  loop
+    execute format('drop policy if exists %I on public.%I', p.policyname, p.tablename);
+  end loop;
+end $$;
+
 -- Signed-in users may only see and change rows they own. The ::text casts keep
 -- this working whether user_id is stored as uuid or as text.
 
