@@ -27,10 +27,25 @@ app.add_middleware(
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+if not SUPABASE_SERVICE_ROLE_KEY:
+    raise RuntimeError(
+        "SUPABASE_SERVICE_ROLE_KEY is not set. The database tables use Row Level "
+        "Security, which the anon key cannot get past, so the backend needs the "
+        "service role key. Copy it from Supabase > Project Settings > API and add "
+        "it to backend/.env locally and to the environment variables on Render. "
+        "It must never be sent to the browser."
+    )
+
+# Anon key: only ever used to verify a caller's access token.
+auth_client = create_client(SUPABASE_URL, os.getenv("SUPABASE_KEY"))
+
+# Service role key: full database access, bypasses Row Level Security. Safe only
+# because every endpoint below scopes its queries to the id from the verified
+# token. Never expose this client or its key to the browser.
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
 class AskRequest(BaseModel):
@@ -65,7 +80,7 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     token = authorization.split(" ", 1)[1].strip()
 
     try:
-        result = supabase.auth.get_user(token)
+        result = auth_client.auth.get_user(token)
     except Exception as error:
         print("AUTH ERROR:", error)
         raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
