@@ -1,0 +1,25 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env.local
+
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Node / Next.js
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+.vercel
+
+# Generated files
+*.pdf
+
+# macOS
+.DS_Store

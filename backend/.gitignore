@@ -1,19 +1,14 @@
 # Backend secrets
-backend/.env
-backend/venv/
+.env
+.env.*
+!.env.example
+
+# Virtualenv
 venv/
 
 # Python
 __pycache__/
 *.pyc
 
-# Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/.env.local
-
 # Generated files
 *.pdf
-
-# Mac
-.DS_Store

@@ -1,8 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = "REDACTED_SUPABASE_URL";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-
-const supabaseAnonKey = "REDACTED_SUPABASE_KEY";
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+      "Set them in frontend/.env.local locally and in your Vercel project settings."
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
