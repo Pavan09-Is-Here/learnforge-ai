@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
 const BACKEND_URL =
@@ -581,6 +581,24 @@ export default function Home() {
     } finally {
       setPdfLoading(false);
     }
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl shadow-sm border p-8 w-full max-w-md text-center">
+          <p className="text-sm font-semibold text-red-600 mb-2">
+            Configuration missing
+          </p>
+          <p className="text-slate-600 text-sm">
+            This deployment is missing{" "}
+            <code className="text-xs">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code className="text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>. Add
+            them in the Vercel project settings, then redeploy.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   if (!user) {
