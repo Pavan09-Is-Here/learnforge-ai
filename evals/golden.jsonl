@@ -1,0 +1,52 @@
+{"id":"q01","shape":"literal","doc":"optimizers","question":"What does the second moment in Adam estimate?","gold_spans":["the second moment, an estimate of the uncentred variance"]}
+{"id":"q02","shape":"literal","doc":"optimizers","question":"What effective window does a beta2 of 0.999 give the second-moment estimate?","gold_spans":["A beta2 of 0.999 means the second-moment estimate has an effective"]}
+{"id":"q03","shape":"literal","doc":"optimizers","question":"Does bias correction fix the variance of the moment estimate?","gold_spans":["It corrects the expected value,"]}
+{"id":"q04","shape":"literal","doc":"optimizers","question":"How does learning-rate warmup change the learning rate over the first steps?","gold_spans":["ramps the learning rate linearly from near zero up to the target value"]}
+{"id":"q05","shape":"literal","doc":"optimizers","question":"At which step did the transformer without warmup diverge?","gold_spans":["diverged at step 310"]}
+{"id":"q06","shape":"literal","doc":"optimizers","question":"What is cosine decay?","gold_spans":["Cosine decay reduces"]}
+{"id":"q07","shape":"literal","doc":"optimizers","question":"What does AdamW decouple?","gold_spans":["AdamW decouples the two"]}
+{"id":"q08","shape":"literal","doc":"optimizers","question":"What gradient clipping threshold is commonly used?","gold_spans":["exceeds a threshold, commonly 1.0"]}
+{"id":"q09","shape":"literal","doc":"optimizers","question":"Why is clipping by global norm preferred?","gold_spans":["preserves the direction of the update"]}
+{"id":"q10","shape":"literal","doc":"optimizers","question":"What are the conventional decay rates for Adam?","gold_spans":["beta1 = 0.9 and beta2 = 0.999"]}
+{"id":"q11","shape":"paraphrase","doc":"optimizers","question":"Why do the opening updates misbehave before the optimiser has seen many batches?","gold_spans":["extremely noisy. Dividing by the","that estimate is built from very few samples"]}
+{"id":"q12","shape":"paraphrase","doc":"optimizers","question":"Is the early instability about how big the steps are, or about how unreliable they are?","gold_spans":["This is a variance problem, not a scale problem"]}
+{"id":"q13","shape":"paraphrase","doc":"optimizers","question":"Should a bigger batch use a longer ramp at the start?","gold_spans":["Larger batches need longer warmup"]}
+{"id":"q14","shape":"paraphrase","doc":"optimizers","question":"Why does penalising big weights behave oddly with adaptive methods?","gold_spans":["the adaptive rescaling also rescales the penalty"]}
+{"id":"q15","shape":"paraphrase","doc":"optimizers","question":"What makes accumulated velocity useful when curvature is uneven?","gold_spans":["momentum is the difference between training and not training"]}
+{"id":"q16","shape":"paraphrase","doc":"optimizers","question":"What determines how far the parameters travel across a whole run?","gold_spans":["the area under the learning-rate curve"]}
+{"id":"q17","shape":"literal","doc":"retrieval","question":"What is recall at k?","gold_spans":["the fraction for which at least one of the top k retrieved passages contains the answer"]}
+{"id":"q18","shape":"literal","doc":"retrieval","question":"What does recursive splitting cut on first?","gold_spans":["Recursive splitting cuts on the largest available boundary first"]}
+{"id":"q19","shape":"literal","doc":"retrieval","question":"How much overlap between consecutive chunks is suggested?","gold_spans":["Overlapping consecutive chunks by ten to fifteen percent"]}
+{"id":"q20","shape":"literal","doc":"retrieval","question":"What is the highest-leverage trick in chunking?","gold_spans":["prepend the heading path to the chunk body"]}
+{"id":"q21","shape":"literal","doc":"retrieval","question":"What does inverse document frequency weight each term by?","gold_spans":["Inverse document frequency weights each term by how rare it"]}
+{"id":"q22","shape":"literal","doc":"retrieval","question":"What are the conventional k1 and b parameters in BM25?","gold_spans":["conventionally set to k1 = 1.2","controlled by b = 0.75"]}
+{"id":"q23","shape":"literal","doc":"retrieval","question":"What constant is conventionally used in reciprocal rank fusion?","gold_spans":["with the constant conventionally set to 60"]}
+{"id":"q24","shape":"literal","doc":"retrieval","question":"What is a cross-encoder reranker?","gold_spans":["it reads the question and a candidate passage together and outputs a single relevance score"]}
+{"id":"q25","shape":"literal","doc":"retrieval","question":"What should happen if no candidate clears the relevance floor?","gold_spans":["If no candidate clears the relevance floor"]}
+{"id":"q26","shape":"literal","doc":"retrieval","question":"Can retrieval metrics be computed without a model?","gold_spans":["Retrieval metrics can be computed without a model"]}
+{"id":"q27","shape":"paraphrase","doc":"retrieval","question":"Why does matching on surface words fail when the user rewords the question?","gold_spans":["paraphrase robustness"]}
+{"id":"q28","shape":"paraphrase","doc":"retrieval","question":"Where do vector-space methods lose to plain word matching?","gold_spans":["Identifiers, error codes, acronyms, function names and numbers are precisely where embeddings blur distinctions"]}
+{"id":"q29","shape":"paraphrase","doc":"retrieval","question":"Why can two ranked lists not be merged by comparing their scores?","gold_spans":["are not on the same scale and no fixed"]}
+{"id":"q30","shape":"paraphrase","doc":"retrieval","question":"What happens when a system hands over its best passages even though none of them match?","gold_spans":["A system with no floor cannot refuse","the single most common cause of confident hallucination"]}
+{"id":"q31","shape":"paraphrase","doc":"retrieval","question":"Why keep model-judged scores apart from the deterministic ones in a report?","gold_spans":["they should be reported separately from the deterministic retrieval numbers"]}
+{"id":"q32","shape":"paraphrase","doc":"retrieval","question":"What is wrong with returning a very large number of passages?","gold_spans":["almost guarantees the model will anchor on the wrong one"]}
+{"id":"q33","shape":"literal","doc":"serving","question":"What is a reasonable target for time to first token?","gold_spans":["under one and a half seconds to first token"]}
+{"id":"q34","shape":"literal","doc":"serving","question":"How long does embedding the query cost?","gold_spans":["embedding the query costs forty to eighty milliseconds"]}
+{"id":"q35","shape":"literal","doc":"serving","question":"How long does a cross-encoder rerank over twelve candidates cost?","gold_spans":["costs one hundred to one hundred and fifty"]}
+{"id":"q36","shape":"literal","doc":"serving","question":"What does HNSW build?","gold_spans":["HNSW builds a navigable small-world graph in layers"]}
+{"id":"q37","shape":"literal","doc":"serving","question":"What HNSW neighbour and construction values are suggested as a starting point?","gold_spans":["Values of sixteen neighbours and a construction candidate list of"]}
+{"id":"q38","shape":"literal","doc":"serving","question":"How does IVF partition the space?","gold_spans":["IVF partitions the space into clusters and searches only the nearest few"]}
+{"id":"q39","shape":"literal","doc":"serving","question":"Why is caching whole answers by question usually wrong?","gold_spans":["getting that key wrong is a data-leak bug"]}
+{"id":"q40","shape":"paraphrase","doc":"serving","question":"Which part of the request cost dominates everything else?","gold_spans":["within generation the input tokens dominate"]}
+{"id":"q41","shape":"paraphrase","doc":"serving","question":"Why can a healthy-looking average hide a broken experience?","gold_spans":["An average latency can look healthy while a"]}
+{"id":"q42","shape":"paraphrase","doc":"serving","question":"What makes a downvote such valuable instrumentation?","gold_spans":["is a complete, ready-made eval case"]}
+{"id":"q43","shape":"paraphrase","doc":"serving","question":"How do you catch an answer that came from the model rather than the documents?","gold_spans":["Validating citations against the set of retrieved passage identifiers after generation"]}
+{"id":"q44","shape":"multi","doc":"retrieval","question":"How does reranking let you send less context and still answer well?","gold_spans":["with a good ordering, five passages carry","Reranking buys two things"]}
+{"id":"q45","shape":"multi","doc":"optimizers","question":"How do warmup and gradient clipping divide the work between them?","gold_spans":["Clipping and warmup address overlapping failure modes","Clipping","handles rare large gradients at any point in training"]}
+{"id":"q46","shape":"multi","doc":"serving","question":"Why does putting the vector index in the application database reduce over-fetching?","gold_spans":["per-user filtering and access control become a WHERE clause enforced by the database","A system that filters after retrieving has to over-fetch"]}
+{"id":"q47","shape":"unanswerable","doc":"optimizers","question":"What rank should I use for a LoRA adapter on a 7B model?","gold_spans":[]}
+{"id":"q48","shape":"unanswerable","doc":"serving","question":"How much does an H100 cost per hour on this cloud provider?","gold_spans":[]}
+{"id":"q49","shape":"unanswerable","doc":"retrieval","question":"Which licence does this dataset ship under?","gold_spans":[]}
+{"id":"q50","shape":"unanswerable","doc":"optimizers","question":"What dropout rate did the authors use in their final model?","gold_spans":[]}
+{"id":"q51","shape":"unanswerable","doc":"serving","question":"How do I configure the Kubernetes horizontal pod autoscaler for this service?","gold_spans":[]}
+{"id":"q52","shape":"unanswerable","doc":"retrieval","question":"Which tokeniser vocabulary size was chosen and why?","gold_spans":[]}

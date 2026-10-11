@@ -26,3 +26,6 @@ frontend/out/
 
 # local editor/agent config
 .claude/
+
+# eval runs (baseline.json is committed, individual runs are not)
+evals/results/

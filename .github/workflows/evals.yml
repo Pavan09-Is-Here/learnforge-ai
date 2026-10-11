@@ -1,0 +1,35 @@
+name: evals
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  retrieval-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The harness is stdlib-only and offline by design: no dependency
+      # install, no API key, no database. That is what makes it cheap enough
+      # to gate every pull request.
+      - name: Prove the extracted retrieval still matches production
+        run: python evals/test_retrieval_equivalence.py
+
+      - name: Run the retrieval eval
+        run: python evals/run_eval.py --json eval-report.json
+
+      - name: Gate on regression against the committed baseline
+        run: python evals/run_eval.py --quiet --gate
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval-report.json

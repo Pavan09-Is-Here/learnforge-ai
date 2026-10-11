@@ -1,0 +1,522 @@
+{
+  "generated_at": "2026-10-11T11:15:22+00:00",
+  "corpus": {
+    "documents": 3,
+    "chunks": 17,
+    "cases": 52,
+    "answerable": 46,
+    "unanswerable": 6,
+    "shapes": {
+      "literal": 27,
+      "paraphrase": 16,
+      "multi": 3,
+      "unanswerable": 6
+    },
+    "straddled_spans": 2
+  },
+  "regression_budget": 0.02,
+  "scopes": {
+    "document": [
+      {
+        "strategy": "bm25",
+        "scope": "document",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9347826086956522,
+        "recall@5": 1.0,
+        "precision@3": 0.3333333333333333,
+        "mrr": 0.8822463768115942,
+        "gate_auroc": 0.9311594202898551,
+        "can_refuse": true,
+        "latency_p50_ms": 0.4573379992507398,
+        "latency_p95_ms": 0.7064980018185452,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.8125,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              3,
+              0
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              5,
+              1,
+              4
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              6,
+              7
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "hybrid_rrf",
+        "scope": "document",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9347826086956522,
+        "recall@5": 1.0,
+        "precision@3": 0.3333333333333333,
+        "mrr": 0.8858695652173914,
+        "gate_auroc": 0.644927536231884,
+        "can_refuse": true,
+        "latency_p50_ms": 1.2654899910558015,
+        "latency_p95_ms": 1.5808710013516247,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.8125,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              3,
+              0
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              5,
+              1,
+              4
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              6,
+              7
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "prod_keyword",
+        "scope": "document",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9565217391304348,
+        "recall@5": 1.0,
+        "precision@3": 0.3333333333333333,
+        "mrr": 0.8804347826086957,
+        "gate_auroc": 0.75,
+        "can_refuse": false,
+        "latency_p50_ms": 0.06420401041395962,
+        "latency_p95_ms": 0.10520798969082534,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.875,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              0,
+              3
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              7,
+              6
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "tfidf_cosine",
+        "scope": "document",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9347826086956522,
+        "recall@5": 1.0,
+        "precision@3": 0.3333333333333333,
+        "mrr": 0.8858695652173914,
+        "gate_auroc": 0.9601449275362319,
+        "can_refuse": true,
+        "latency_p50_ms": 0.7564530096715316,
+        "latency_p95_ms": 0.9198490006383508,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.8125,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              3,
+              0
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              5,
+              1,
+              4
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              6,
+              7
+            ]
+          }
+        ]
+      }
+    ],
+    "corpus": [
+      {
+        "strategy": "bm25",
+        "scope": "corpus",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9130434782608695,
+        "recall@5": 0.9347826086956522,
+        "precision@3": 0.32608695652173914,
+        "mrr": 0.8735507246376811,
+        "gate_auroc": 0.8333333333333334,
+        "can_refuse": true,
+        "latency_p50_ms": 1.2716179917333648,
+        "latency_p95_ms": 1.5669300046283752,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.75,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              7,
+              3
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              1,
+              5,
+              8
+            ]
+          },
+          {
+            "id": "q27",
+            "shape": "paraphrase",
+            "question": "Why does matching on surface words fail when the user rewords the question?",
+            "gold_chunks": [
+              8
+            ],
+            "top3": [
+              15,
+              9,
+              7
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              0,
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "hybrid_rrf",
+        "scope": "corpus",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9130434782608695,
+        "recall@5": 0.9347826086956522,
+        "precision@3": 0.32608695652173914,
+        "mrr": 0.8735507246376811,
+        "gate_auroc": 0.5652173913043478,
+        "can_refuse": true,
+        "latency_p50_ms": 3.724546011653729,
+        "latency_p95_ms": 4.8576440021861345,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.75,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              7,
+              3
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              1,
+              5,
+              8
+            ]
+          },
+          {
+            "id": "q27",
+            "shape": "paraphrase",
+            "question": "Why does matching on surface words fail when the user rewords the question?",
+            "gold_chunks": [
+              8
+            ],
+            "top3": [
+              15,
+              9,
+              7
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              0,
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "prod_keyword",
+        "scope": "corpus",
+        "recall@1": 0.7391304347826086,
+        "recall@3": 0.9130434782608695,
+        "recall@5": 0.9565217391304348,
+        "precision@3": 0.32608695652173914,
+        "mrr": 0.827536231884058,
+        "gate_auroc": 0.6757246376811594,
+        "can_refuse": false,
+        "latency_p50_ms": 0.18342399562243372,
+        "latency_p95_ms": 0.31944899819791317,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.75,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              0,
+              3
+            ]
+          },
+          {
+            "id": "q27",
+            "shape": "paraphrase",
+            "question": "Why does matching on surface words fail when the user rewords the question?",
+            "gold_chunks": [
+              8
+            ],
+            "top3": [
+              15,
+              12,
+              6
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              12,
+              7
+            ]
+          },
+          {
+            "id": "q41",
+            "shape": "paraphrase",
+            "question": "Why can a healthy-looking average hide a broken experience?",
+            "gold_chunks": [
+              15
+            ],
+            "top3": [
+              10,
+              0,
+              12
+            ]
+          }
+        ]
+      },
+      {
+        "strategy": "tfidf_cosine",
+        "scope": "corpus",
+        "recall@1": 0.8043478260869565,
+        "recall@3": 0.9347826086956522,
+        "recall@5": 0.9347826086956522,
+        "precision@3": 0.3333333333333333,
+        "mrr": 0.8744565217391305,
+        "gate_auroc": 0.8731884057971014,
+        "can_refuse": true,
+        "latency_p50_ms": 2.199855007347651,
+        "latency_p95_ms": 2.7383169945096597,
+        "recall@3_by_shape": {
+          "literal": 1.0,
+          "paraphrase": 0.8125,
+          "multi": 1.0
+        },
+        "misses": [
+          {
+            "id": "q11",
+            "shape": "paraphrase",
+            "question": "Why do the opening updates misbehave before the optimiser has seen many batches?",
+            "gold_chunks": [
+              1
+            ],
+            "top3": [
+              2,
+              7,
+              3
+            ]
+          },
+          {
+            "id": "q12",
+            "shape": "paraphrase",
+            "question": "Is the early instability about how big the steps are, or about how unreliable they are?",
+            "gold_chunks": [
+              2
+            ],
+            "top3": [
+              5,
+              1,
+              8
+            ]
+          },
+          {
+            "id": "q28",
+            "shape": "paraphrase",
+            "question": "Where do vector-space methods lose to plain word matching?",
+            "gold_chunks": [
+              9
+            ],
+            "top3": [
+              8,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

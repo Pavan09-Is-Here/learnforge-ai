@@ -8,6 +8,7 @@ from supabase import create_client
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from pypdf import PdfReader
+from retrieval import build_context, score_chunks, select_chunks, split_text_into_chunks
 import textwrap
 import os
 import io
@@ -167,18 +168,6 @@ def build_memory_context(messages):
         context += f"{role}: {msg['content']}\n\n"
 
     return context
-
-
-def split_text_into_chunks(text: str, chunk_size: int = 1200):
-    clean_text = " ".join(text.split())
-    chunks = []
-
-    for i in range(0, len(clean_text), chunk_size):
-        chunk = clean_text[i:i + chunk_size]
-        if chunk.strip():
-            chunks.append(chunk)
-
-    return chunks
 
 
 @app.get("/")
@@ -487,56 +476,9 @@ def ask_document(request: DocumentAskRequest, user_id: str = Depends(get_current
         if not chunks:
             raise HTTPException(status_code=404, detail="No document content found.")
 
-        stop_words = {
-            "what", "when", "where", "which", "who", "why", "how",
-            "is", "are", "was", "were", "the", "a", "an", "and",
-            "or", "to", "of", "in", "on", "for", "from", "with",
-            "this", "that", "it", "as", "by", "be", "about"
-        }
-
-        question_words = [
-            word.strip(".,?!:;()[]{}").lower()
-            for word in request.question.split()
-            if len(word.strip(".,?!:;()[]{}")) > 2
-            and word.strip(".,?!:;()[]{}").lower() not in stop_words
-        ]
-
-        scored_chunks = []
-
-        for chunk in chunks:
-            text = chunk["chunk_text"].lower()
-            score = 0
-
-            for word in question_words:
-                if word in text:
-                    score += 2
-
-                word_count = text.count(word)
-                if word_count > 1:
-                    score += word_count
-
-            if request.question.lower() in text:
-                score += 10
-
-            scored_chunks.append({
-                "chunk_text": chunk["chunk_text"],
-                "chunk_index": chunk["chunk_index"],
-                "score": score
-            })
-
-        scored_chunks.sort(key=lambda x: x["score"], reverse=True)
-
-        best_chunks = [chunk for chunk in scored_chunks if chunk["score"] > 0][:8]
-
-        if not best_chunks:
-            best_chunks = scored_chunks[:4]
-
-        context = "\n\n".join(
-            [
-                f"Source Chunk {item['chunk_index']}:\n{item['chunk_text']}"
-                for item in best_chunks
-            ]
-        )
+        scored_chunks = score_chunks(request.question, chunks)
+        best_chunks = select_chunks(scored_chunks)
+        context = build_context(best_chunks)
 
         prompt = f"""
 You are LearnForge AI Document Mode.
@@ -573,9 +515,9 @@ Use this structure:
             "answer": answer,
             "sources": [
                 {
-                    "chunk_index": item["chunk_index"],
-                    "score": item["score"],
-                    "preview": item["chunk_text"][:300]
+                    "chunk_index": item.chunk_index,
+                    "score": item.score,
+                    "preview": item.chunk_text[:300]
                 }
                 for item in best_chunks
             ]
